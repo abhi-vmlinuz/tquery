@@ -104,14 +104,14 @@ sudo kubectl get pod tq-demo -n nexus-challenges -o json | tq -g nginx -g runnin
 
 ## Features
 
-- **Smart shape auto-detection** — automatically chooses table for flat datasets and tree for deeply nested objects (e.g. Docker, Kubernetes, Terraform)
-- **Auto-unwrapping** — automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
-- **Path-pruning grep (`-g`)** — high-speed regex search across tables, and prunes hierarchical trees to only show the matching branch paths
-- **Row limit flag (`-<number>`, `-l`)** — quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
-- **Direct shape flags** — `--table`, `--tree`, `--json`, `--markdown`, `--csv`
-- **Embedded jq engine** — native Go JQ query processing powered by `gojq`; no external `jq` binary required
-- **Interactive TUI mode** (`-i`) — live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
-- **Zero dependencies** — standalone, single static binary (`tq`, aliased to `tquery`)
+- **Smart shape auto-detection** // automatically chooses table for flat datasets and tree for deeply nested objects (e.g. Docker, Kubernetes, Terraform)
+- **Auto-unwrapping** // automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
+- **Path-pruning grep (`-g`)** // high-speed regex search across tables, and prunes hierarchical trees to only show the matching branch paths
+- **Row limit flag (`-<number>`, `-l`)** // quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
+- **Direct shape flags** // `--table`, `--tree`, `--json`, `--markdown`, `--csv`
+- **Embedded jq engine** // native Go JQ query processing powered by `gojq`; no external `jq` binary required
+- **Interactive TUI mode** (`-i`) // live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
+- **Zero dependencies** // standalone, single static binary (`tq`, aliased to `tquery`)
 
 ---
 
