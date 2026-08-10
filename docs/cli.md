@@ -1,14 +1,14 @@
 # CLI Reference
 
-`tquery` provides a flexible command-line interface for piping, filtering, and converting JSON streams into human-friendly formats.
+`tq` (aliased as `tquery`) provides a flexible command-line interface for piping, filtering, and converting JSON streams into human-friendly formats.
 
 ---
 
 ## Synopsis
 
 ```bash
-tquery [options] [jq_query] [file]
-<command> | tquery [options] [jq_query]
+tq [options] [-<number>] [jq_query] [file]
+<command> | tq [options] [-<number>] [jq_query]
 ```
 
 ---
@@ -18,11 +18,24 @@ tquery [options] [jq_query] [file]
 | Argument | Description | Required |
 | --- | --- | --- |
 | `[jq_query]` | Any valid `jq` query filter (e.g. `.` or `.data[]` or `.users[] \| {name, email}`). | Optional |
-| `[file]` | Path to a local `.json` file. If omitted, `tquery` reads from standard input (`stdin`). | Optional |
+| `[file]` | Path to a local `.json` file. If omitted, `tq` reads from standard input (`stdin`). | Optional |
 
 ---
 
 ## Options & Flags
+
+### `-<number>, -l, --limit <num>`
+Limits the maximum number of output rows/records displayed. Works seamlessly with any number prefix like `-10`, `-25`, `-5`, etc.
+
+```bash
+# Display only the first 10 rows
+curl -s https://api.example.com/models | tq -10
+
+# Limit with query
+tq -5 '.data[]' data.json
+```
+
+---
 
 ### `-f, --format <format>`
 Specifies the output format for rendered data. Defaults to `table`.
@@ -36,26 +49,13 @@ Specifies the output format for rendered data. Defaults to `table`.
 
 ```bash
 # Markdown table output
-tquery -f markdown data.json
+tq -f markdown data.json
 
 # CSV output
-tquery -f csv data.json > output.csv
+tq -f csv data.json > output.csv
 
 # Tree structure
-tquery -f tree config.json
-```
-
----
-
-### `-<number>, -l, --limit <num>`
-Limits the maximum number of output rows/records displayed. Works seamlessly with any number prefix like `-10`, `-25`, `-5`, etc.
-
-```bash
-# Display only the first 10 rows
-curl -s https://api.example.com/models | tquery -10
-
-# Limit with query
-tquery -5 '.data[]' data.json
+tq -f tree config.json
 ```
 
 ---
@@ -64,8 +64,8 @@ tquery -5 '.data[]' data.json
 Launches the full-screen interactive Terminal User Interface (TUI). Allows real-time typing of JQ filters, keyboard navigation, row inspection, and instant view switching.
 
 ```bash
-tquery -i data.json
-curl -s https://api.example.com/items | tquery -i
+tq -i data.json
+curl -s https://api.example.com/items | tq -i
 ```
 
 ---
@@ -74,7 +74,7 @@ curl -s https://api.example.com/items | tquery -i
 Hides the column header row in `table`, `markdown`, and `csv` output modes. Useful when feeding output directly into downstream text processing utilities like `awk` or `grep`.
 
 ```bash
-tquery -n -f csv data.json
+tq -n -f csv data.json
 ```
 
 ---
@@ -82,12 +82,12 @@ tquery -n -f csv data.json
 ### `--no-unwrap`
 Disables automatic root envelope unwrapping.
 
-By default, `tquery` scans top-level objects for standard wrapper keys (`data`, `items`, `results`, `models`, `rows`, `records`, `list`, `value`). If found, it automatically unfolds the inner array into a table.
+By default, `tq` scans top-level objects for standard wrapper keys (`data`, `items`, `results`, `models`, `rows`, `records`, `list`, `value`). If found, it automatically unfolds the inner array into a table.
 
 Passing `--no-unwrap` treats the root object as a standard key-value map.
 
 ```bash
-tquery --no-unwrap data.json
+tq --no-unwrap data.json
 ```
 
 ---
@@ -96,16 +96,16 @@ tquery --no-unwrap data.json
 Disables ANSI color codes in output. Automatically engaged when output stdout is redirected or piped to a non-TTY descriptor unless overridden.
 
 ```bash
-tquery --no-color data.json
+tq --no-color data.json
 ```
 
 ---
 
 ### `-v, --version`
-Prints the current version of `tquery` and exits.
+Prints the current version of `tq` and exits.
 
 ```bash
-tquery --version
+tq --version
 # Output: tquery version 1.0.0
 ```
 

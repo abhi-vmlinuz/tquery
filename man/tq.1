@@ -1,0 +1,131 @@
+.TH TQ 1 "August 2026" "tq 1.0.0" "User Commands"
+.SH NAME
+tq \- interactive terminal visualizer & query engine for JSON data
+.SH SYNOPSIS
+.B tq
+[\fIOPTIONS\fR] [\fI\-<number>\fR] [\fIJQ_EXPRESSION\fR] [\fIFILE\fR]
+.br
+\fBcurl\fR ... | \fBtq\fR [\fIOPTIONS\fR] [\fI\-<number>\fR] [\fIJQ_EXPRESSION\fR]
+
+.SH DESCRIPTION
+.B tq
+(also available as \fBtquery\fR) is a fast, Unix-native terminal utility designed to solve the "human interface problem" when working with JSON data in the terminal.
+Instead of dumping dense or formatted raw JSON text, \fBtq\fR parses raw JSON streams, normalizes nested objects and arrays, evaluates embedded \fBjq\fR queries natively, and renders beautiful ANSI color-coded ASCII/Unicode tables, hierarchical trees, and markdown documents.
+
+It automatically unwraps top-level REST API wrappers (such as \fI{"data": [...]}\fR, \fI{"items": [...]}\fR, or \fI{"models": [...]}\fR) into readable data tables without requiring manual jq array selectors.
+
+\fBtq\fR also features an interactive Terminal User Interface (TUI) mode triggered with \fB\-i\fR or when launched interactively, featuring real-time live jq query filtering, keyboard scrolling, view mode switching, and row inspection.
+
+.SH OPTIONS
+.TP
+\fB\-<number>\fR, \fB\-l\fR, \fB\-\-limit\fR \fINUM\fR
+Limit the maximum number of output rows displayed (e.g. \fBtq \-10\fR or \fBtq \-l 5\fR).
+
+.TP
+\fB\-f\fR, \fB\-\-format\fR \fIFORMAT\fR
+Set output formatting mode. Supported formats:
+.RS
+.IP \fBtable\fR 4
+(Default) Color-coded Unicode ASCII table with auto-aligned columns and syntax-colored primitives.
+.IP \fBmarkdown\fR 4
+GitHub-Flavored Markdown (GFM) pipe table.
+.IP \fBcsv\fR 4
+Comma-separated values data stream.
+.IP \fBtsv\fR 4
+Tab-separated values data stream.
+.IP \fBtree\fR 4
+Indented ASCII tree structure displaying nested keys and types.
+.IP \fBjson\fR 4
+Pretty-printed JSON object output.
+.RE
+
+.TP
+\fB\-i\fR, \fB\-\-interactive\fR
+Launch interactive TUI mode with a live jq query prompt, keyboard navigation, view switcher, and row detail inspector overlay drawer.
+
+.TP
+\fB\-n\fR, \fB\-\-no-headers\fR
+Omit header rows in table, markdown, and CSV formats.
+
+.TP
+\fB\-\-no-unwrap\fR
+Disable automatic root array un-wrapping for top-level REST API wrapper keys (e.g. \fIdata\fR, \fIitems\fR, \fIresults\fR).
+
+.TP
+\fB\-\-no-color\fR
+Disable ANSI color formatting in output.
+
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Print software version and exit.
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Display comprehensive CLI usage information and examples.
+
+.SH JQ QUERY ENGINE
+.B tq\fR embeds a pure-Go implementation of \fBjq\fR (\fBgojq\fR). No external \fBjq\fR executable is required.
+You can pass any standard \fBjq\fR filter as a positional argument.
+
+.B Examples of valid JQ expressions:
+.RS
+.IP "\(bu" 2
+\fB.data[]\fR - Extract array elements
+.IP "\(bu" 2
+\fB.data[] | {id, owned_by}\fR - Construct object containing specific fields
+.IP "\(bu" 2
+\fB.models[] | select(.created > 1600000000)\fR - Filter array elements by condition
+.RE
+
+.SH INTERACTIVE TUI NAVIGATION
+When \fBtq\fR is executed with \fB\-i\fR or launched interactively:
+.TP
+\fBType Text\fR
+Updates the live \fBjq >\fR query prompt and re-renders table/tree views instantaneously.
+.TP
+\fBTab\fR
+Cycles active view mode (\fBTable\fR \-> \fBTree\fR \-> \fBJSON\fR).
+.TP
+\fBEnter\fR
+Pops open the \fBInspect Row Detail\fR overlay drawer for the selected table row, presenting full key-value pairs and nested objects.
+.TP
+\fBEsc\fR
+Closes the Inspect Row Detail overlay.
+.TP
+\fBUp / Down / Vim (k / j)\fR
+Scrolls table rows or viewport content.
+.TP
+\fBCtrl+C / q\fR
+Exits the application.
+
+.SH EXAMPLES
+.TP
+\fBVisualize REST API response as a table:\fR
+$ curl \-s https://inference.dahl.global/v1/models | tq
+
+.TP
+\fBDisplay first 10 rows with filter:\fR
+$ curl \-s https://inference.dahl.global/v1/models | tq \-10 '.data[] | {id, owned_by}'
+
+.TP
+\fBConvert JSON file to Markdown table:\fR
+$ tq \-f markdown '.data' data.json
+
+.TP
+\fBExport JSON file to CSV:\fR
+$ tq \-f csv data.json > output.csv
+
+.TP
+\fBDisplay JSON file as a tree:\fR
+$ tq \-f tree config.json
+
+.TP
+\fBLaunch interactive TUI explorer on JSON file:\fR
+$ tq \-i payload.json
+
+.SH SEE ALSO
+.BR jq (1),
+.BR curl (1)
+
+.SH AUTHOR
+Created for terminal productivity and JSON data exploration.

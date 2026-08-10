@@ -1,6 +1,6 @@
 # Practical Examples & DevOps Pipelines
 
-`tquery` integrates directly into Unix pipelines, cloud CLI tools, and development workflows.
+`tq` integrates directly into Unix pipelines, cloud CLI tools, and development workflows.
 
 ---
 
@@ -8,13 +8,18 @@
 
 ### Query Available Models
 ```bash
-curl -s https://inference.dahl.global/v1/models | tquery
+curl -s https://inference.dahl.global/v1/models | tq
+```
+
+### Limit to First 10 Models
+```bash
+curl -s https://inference.dahl.global/v1/models | tq -10
 ```
 
 ### Select Specific Model Fields
 ```bash
 curl -s https://inference.dahl.global/v1/models | \
-  tquery '.data[] | {id, owned_by, created}'
+  tq '.data[] | {id, owned_by, created}'
 ```
 
 ---
@@ -24,12 +29,12 @@ curl -s https://inference.dahl.global/v1/models | \
 ### List Recent Releases in a Clean Table
 ```bash
 curl -s https://api.github.com/repos/charmbracelet/bubbletea/releases | \
-  tquery '.[0:5] | .[] | {tag: .tag_name, name: .name, published: .published_at, prerelease}'
+  tq -5 '.[0:5] | .[] | {tag: .tag_name, name: .name, published: .published_at, prerelease}'
 ```
 
 ### Inspect Open Pull Requests
 ```bash
-gh pr list --json number,title,author,headRefName | tquery
+gh pr list --json number,title,author,headRefName | tq
 ```
 
 ---
@@ -38,12 +43,12 @@ gh pr list --json number,title,author,headRefName | tquery
 
 ### Inspect Docker Container Configurations
 ```bash
-docker inspect my-container | tquery '.[0] | {Id: .Id[0:12], Image: .Config.Image, Running: .State.Running}'
+docker inspect my-container | tq '.[0] | {Id: .Id[0:12], Image: .Config.Image, Running: .State.Running}'
 ```
 
 ### Inspect Docker Network IP Allocations
 ```bash
-docker network inspect bridge | tquery '.[0].Containers | to_entries[] | {id: .key[0:12], name: .value.Name, ip: .value.IPv4Address}'
+docker network inspect bridge | tq '.[0].Containers | to_entries[] | {id: .key[0:12], name: .value.Name, ip: .value.IPv4Address}'
 ```
 
 ---
@@ -53,7 +58,7 @@ docker network inspect bridge | tquery '.[0].Containers | to_entries[] | {id: .k
 ### Visualize Pod Resource Limits as a Markdown Table
 ```bash
 kubectl get pods -o json | \
-  tquery -f markdown '.items[] | {pod: .metadata.name, namespace: .metadata.namespace, status: .status.phase}'
+  tq -f markdown '.items[] | {pod: .metadata.name, namespace: .metadata.namespace, status: .status.phase}'
 ```
 
 ---
@@ -63,12 +68,12 @@ kubectl get pods -o json | \
 ### List EC2 Instances
 ```bash
 aws ec2 describe-instances --output json | \
-  tquery '.Reservations[].Instances[] | {InstanceId, InstanceType, State: .State.Name, PublicIp: .PublicIpAddress}'
+  tq '.Reservations[].Instances[] | {InstanceId, InstanceType, State: .State.Name, PublicIp: .PublicIpAddress}'
 ```
 
 ### List S3 Buckets
 ```bash
-aws s3api list-buckets --output json | tquery '.Buckets'
+aws s3api list-buckets --output json | tq '.Buckets'
 ```
 
 ---
@@ -77,15 +82,15 @@ aws s3api list-buckets --output json | tquery '.Buckets'
 
 ### Convert Any Complex JSON File to CSV
 ```bash
-tquery -f csv '.records' analytics_dump.json > report.csv
+tq -f csv '.records' analytics_dump.json > report.csv
 ```
 
 ### Display Nested Configuration as a Tree
 ```bash
-tquery -f tree package.json
+tq -f tree package.json
 ```
 
 ### Interactively Explore Deep JSON Dumps
 ```bash
-tquery -i large_api_response.json
+tq -i large_api_response.json
 ```

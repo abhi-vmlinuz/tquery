@@ -125,7 +125,7 @@ func parseFlags() Config {
 		filteredArgs = append(filteredArgs, arg)
 	}
 
-	fs := flag.NewFlagSet("tquery", flag.ExitOnError)
+	fs := flag.NewFlagSet("tq", flag.ExitOnError)
 
 	var limitFlag int
 	fs.StringVar(&cfg.Format, "f", "table", "Output format: table, markdown, csv, tsv, tree, json")
@@ -143,14 +143,14 @@ func parseFlags() Config {
 	fs.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tquery [options] [-<number>] [jq_query] [file]\n\n")
-		fmt.Fprintf(os.Stderr, "tquery converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: tq [options] [-<number>] [jq_query] [file]\n\n")
+		fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tquery\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tquery -10\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tquery '.data[] | {id, owned_by}'\n")
-		fmt.Fprintf(os.Stderr, "  tquery -5 -f markdown '.items' data.json\n")
-		fmt.Fprintf(os.Stderr, "  tquery -i data.json\n\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -10\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq '.data[] | {id, owned_by}'\n")
+		fmt.Fprintf(os.Stderr, "  tq -5 -f markdown '.items' data.json\n")
+		fmt.Fprintf(os.Stderr, "  tq -i data.json\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
 	}

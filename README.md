@@ -1,14 +1,18 @@
-# tquery
+# tquery (tq)
 
-Interactive terminal visualizer and query engine for JSON data.
+<p align="center">
+  <strong>Interactive terminal visualizer and query engine for JSON data.</strong>
+</p>
 
-[![Release](https://img.shields.io/github/v/release/abhi-vmlinuz/tquery?style=flat-square&color=blue)](https://github.com/abhi-vmlinuz/tquery/releases)
-[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go)](https://golang.org)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+<p align="center">
+  <a href="https://github.com/abhi-vmlinuz/tquery/releases"><img src="https://img.shields.io/github/v/release/abhi-vmlinuz/tquery?style=flat-square&color=blue" alt="Release"></a>
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
+</p>
 
 ---
 
-`tquery` parses raw JSON streams, normalizes nested data structures, executes embedded `jq` filters natively, and renders ASCII/Unicode tables, hierarchical trees, and markdown exports.
+`tq` parses raw JSON streams, normalizes nested data structures, executes embedded `jq` filters natively, and renders clean ASCII/Unicode tables, hierarchical trees, and markdown exports.
 
 ```text
 # Before: raw / jq pretty print
@@ -25,8 +29,8 @@ $ curl -s https://inference.dahl.global/v1/models | jq
   ]
 }
 
-# After: tquery
-$ curl -s https://inference.dahl.global/v1/models | tquery
+# After: tq
+$ curl -s https://inference.dahl.global/v1/models | tq
 ┼────────────┼────────────────────────┼────────┼──────────┼
 │ created    │ id                     │ object │ owned_by │
 ┼────────────┼────────────────────────┼────────┼──────────┼
@@ -41,11 +45,11 @@ $ curl -s https://inference.dahl.global/v1/models | tquery
 
 - **Table formatter** — auto-detects arrays of objects and generates aligned, syntax-highlighted tables
 - **Auto-unwrapping** — automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
-- **Row limit flag (`-<number>`)** — quick Unix-style row limiting (e.g. `tquery -10` or `tquery -l 5`)
+- **Row limit flag (`-<number>`)** — quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
 - **Embedded jq engine** — native Go JQ query processing powered by `gojq`; no external `jq` binary required
 - **Interactive TUI mode** (`-i`) — live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
 - **Multi-format export** — `table`, `markdown`, `csv`, `tsv`, `tree`, `json`
-- **Zero dependencies** — standalone, single static binary
+- **Zero dependencies** — standalone, single static binary (`tq`, aliased to `tquery`)
 
 ---
 
@@ -63,7 +67,7 @@ go install github.com/abhi-vmlinuz/tquery@latest
 git clone https://github.com/abhi-vmlinuz/tquery.git
 cd tquery
 
-# System-wide installation (requires sudo)
+# System-wide installation (installs 'tq' with 'tquery' symlink)
 sudo make install
 
 # User-level installation (installs to ~/.local/bin and ~/.local/share/man)
@@ -75,34 +79,30 @@ make install-user
 ```bash
 git clone https://github.com/abhi-vmlinuz/tquery.git
 cd tquery
-go build -ldflags="-s -w" -o tquery main.go
-sudo mv tquery /usr/local/bin/
+go build -ldflags="-s -w" -o tq main.go
+sudo mv tq /usr/local/bin/
+sudo ln -sf /usr/local/bin/tq /usr/local/bin/tquery
 ```
 
 ---
 
 ## Shell completions
 
-Completions are available for Bash, Fish, and Zsh.
+Completions are available for Bash, Fish, and Zsh for both `tq` and `tquery`.
 
 ### Bash
 ```bash
-# Add to ~/.bashrc:
-source <(tquery --completion bash 2>/dev/null || cat /usr/local/share/bash-completion/completions/tquery)
-```
-Or copy directly:
-```bash
-sudo cp completions/tquery.bash /etc/bash_completion.d/tquery
+sudo cp completions/tq.bash /etc/bash_completion.d/tq
 ```
 
 ### Fish
 ```bash
-cp completions/tquery.fish ~/.config/fish/completions/
+cp completions/tq.fish ~/.config/fish/completions/
 ```
 
 ### Zsh
 ```bash
-cp completions/tquery.zsh "${fpath[1]}/_tquery"
+cp completions/tq.zsh "${fpath[1]}/_tq"
 ```
 
 ---
@@ -111,34 +111,39 @@ cp completions/tquery.zsh "${fpath[1]}/_tquery"
 
 **Pipe stdin directly**
 ```bash
-curl -s https://api.github.com/repos/golang/go/releases | tquery
+curl -s https://inference.dahl.global/v1/models | tq
+```
+
+**Limit output rows**
+```bash
+curl -s https://inference.dahl.global/v1/models | tq -10
 ```
 
 **Query JSON with JQ filters**
 ```bash
-cat data.json | tquery '.data[] | {id, owned_by}'
+cat data.json | tq '.data[] | {id, owned_by}'
 ```
 
 **Convert JSON to a markdown table**
 ```bash
-tquery -f markdown '.users' users.json
+tq -f markdown '.users' users.json
 ```
 
 **Hierarchical tree mode**
 ```bash
-tquery -f tree config.json
+tq -f tree config.json
 ```
 
 **Launch the interactive explorer**
 ```bash
-tquery -i payload.json
+tq -i payload.json
 ```
 
 ---
 
 ## TUI keybindings
 
-When running in interactive mode (`tquery -i`):
+When running in interactive mode (`tq -i`):
 
 | Key | Action |
 | --- | --- |
@@ -156,7 +161,7 @@ When running in interactive mode (`tquery -i`):
 - [CLI reference](docs/cli.md) — full flag documentation, format options, and exit codes
 - [Interactive TUI guide](docs/tui.md) — live visualizer, view modes, and keybindings
 - [Practical examples and pipelines](docs/examples.md) — DevOps, cloud API (GitHub, Docker, Kubernetes, AWS, LLM endpoints) workflows
-- [Man page](man/tquery.1) — UNIX Section 1 manual page
+- [Man page](man/tq.1) — UNIX Section 1 manual page
 
 ---
 
