@@ -28,6 +28,7 @@ type Config struct {
 	Limit       int
 	Grep        string
 	InvertMatch bool
+	IgnoreCase  bool
 	Query       string
 	FilePath    string
 }
@@ -89,12 +90,12 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	// Apply -g / --grep regex & literal filtering
+	// Apply -g / -e / --grep regex & literal filtering
 	if cfg.Grep != "" {
 		filteredDS, err := filter.Filter(ds, filter.Options{
 			Pattern:     cfg.Grep,
 			InvertMatch: cfg.InvertMatch,
-			IgnoreCase:  true,
+			IgnoreCase:  cfg.IgnoreCase,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Grep error: %v\n", err)
@@ -114,9 +115,11 @@ func Execute() {
 	}
 
 	opts := render.RenderOptions{
-		Format:     render.Format(strings.ToLower(cfg.Format)),
-		ShowHeader: !cfg.NoHeaders,
-		UseColor:   !cfg.NoColor && isTTYStdout,
+		Format:              render.Format(strings.ToLower(cfg.Format)),
+		ShowHeader:          !cfg.NoHeaders,
+		UseColor:            !cfg.NoColor,
+		HighlightPattern:    cfg.Grep,
+		HighlightIgnoreCase: cfg.IgnoreCase,
 	}
 
 	if err := render.Render(os.Stdout, ds, opts); err != nil {
@@ -128,27 +131,67 @@ func Execute() {
 func parseFlags() Config {
 	var cfg Config
 	var numericLimit int
+	cfg.IgnoreCase = true // Smart case-insensitive by default for seamless grep experience
 
-	// Pre-process arguments to detect -<number> like -10, -50, etc.
+	rawArgs := os.Args[1:]
 	var filteredArgs []string
-	for _, arg := range os.Args[1:] {
+
+	for i := 0; i < len(rawArgs); i++ {
+		arg := rawArgs[i]
+
+		// 1. Detect -<number> (e.g. -10, -5)
 		if strings.HasPrefix(arg, "-") && len(arg) > 1 {
-			// Check if all remaining characters are digits
 			if num, err := strconv.Atoi(arg[1:]); err == nil && num > 0 {
 				numericLimit = num
 				continue
 			}
 		}
+
+		// 2. Detect combined grep flags like -gi, -gv, -gvi, -giv
+		if strings.HasPrefix(arg, "-g") && len(arg) > 2 {
+			subFlags := arg[2:]
+			hasI := strings.Contains(subFlags, "i")
+			hasV := strings.Contains(subFlags, "v")
+
+			if hasI {
+				cfg.IgnoreCase = true
+			}
+			if hasV {
+				cfg.InvertMatch = true
+			}
+
+			// If next arg exists and doesn't start with '-', it's the pattern
+			if i+1 < len(rawArgs) && !strings.HasPrefix(rawArgs[i+1], "-") {
+				cfg.Grep = rawArgs[i+1]
+				i++
+				continue
+			}
+			continue
+		}
+
+		// 3. Detect -e <pattern> (standard grep flag)
+		if arg == "-e" && i+1 < len(rawArgs) {
+			cfg.Grep = rawArgs[i+1]
+			i++
+			continue
+		}
+
 		filteredArgs = append(filteredArgs, arg)
 	}
 
 	fs := flag.NewFlagSet("tq", flag.ExitOnError)
 
 	var limitFlag int
+	var grepFlag string
+	var invertFlag bool
+	var ignoreCaseFlag bool
+	var interactiveFlag bool
+
 	fs.StringVar(&cfg.Format, "f", "table", "Output format: table, markdown, csv, tsv, tree, json")
 	fs.StringVar(&cfg.Format, "format", "table", "Output format: table, markdown, csv, tsv, tree, json")
-	fs.BoolVar(&cfg.Interactive, "i", false, "Launch interactive TUI mode")
-	fs.BoolVar(&cfg.Interactive, "interactive", false, "Launch interactive TUI mode")
+	fs.BoolVar(&interactiveFlag, "i", false, "Launch interactive TUI mode (or ignore-case when using -g)")
+	fs.BoolVar(&interactiveFlag, "interactive", false, "Launch interactive TUI mode")
+	fs.BoolVar(&interactiveFlag, "ui", false, "Launch interactive TUI mode")
 	fs.BoolVar(&cfg.NoHeaders, "n", false, "Hide headers")
 	fs.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
 	fs.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
@@ -156,30 +199,58 @@ func parseFlags() Config {
 	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
 	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
 	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
-	fs.StringVar(&cfg.Grep, "g", "", "Filter rows matching regex or string pattern")
-	fs.StringVar(&cfg.Grep, "grep", "", "Filter rows matching regex or string pattern")
-	fs.BoolVar(&cfg.InvertMatch, "V", false, "Invert grep match (select non-matching rows)")
-	fs.BoolVar(&cfg.InvertMatch, "invert", false, "Invert grep match (select non-matching rows)")
-	fs.BoolVar(&cfg.InvertMatch, "invert-match", false, "Invert grep match (select non-matching rows)")
-	fs.BoolVar(&cfg.ShowVersion, "v", false, "Show version")
+	fs.StringVar(&grepFlag, "g", "", "Filter rows matching regex or string pattern")
+	fs.StringVar(&grepFlag, "grep", "", "Filter rows matching regex or string pattern")
+	fs.BoolVar(&invertFlag, "v", false, "Invert match (select non-matching rows)")
+	fs.BoolVar(&invertFlag, "V", false, "Invert match (select non-matching rows)")
+	fs.BoolVar(&invertFlag, "invert", false, "Invert match (select non-matching rows)")
+	fs.BoolVar(&invertFlag, "invert-match", false, "Invert match (select non-matching rows)")
+	fs.BoolVar(&ignoreCaseFlag, "I", false, "Case-insensitive grep match")
+	fs.BoolVar(&ignoreCaseFlag, "ignore-case", false, "Case-insensitive grep match")
 	fs.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: tq [options] [-<number>] [-g <pattern>] [jq_query] [file]\n\n")
 		fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
+		fmt.Fprintf(os.Stderr, "Grep Options:\n")
+		fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter rows by regex or string pattern\n")
+		fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
+		fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi          Combined grep flags (ignore case, invert match)\n")
+		fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match (like grep -v)\n")
+		fmt.Fprintf(os.Stderr, "  -<number>, -l <number>  Limit output rows (e.g. -10 or -l 5)\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -10\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -g 'MiniMax|meta'\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -g 'owned_by:deepseek'\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -g 'stopped' --invert\n")
-		fmt.Fprintf(os.Stderr, "  tq -5 -f markdown '.items' data.json\n")
+		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq\n")
+		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -10\n")
+		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google|deepseek'\n")
+		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -gi 'llama' -5\n")
+		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -gv 'google'\n")
 		fmt.Fprintf(os.Stderr, "  tq -i data.json\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
 	}
 
 	_ = fs.Parse(filteredArgs)
+
+	if grepFlag != "" {
+		cfg.Grep = grepFlag
+	}
+	if invertFlag {
+		cfg.InvertMatch = true
+	}
+	if ignoreCaseFlag {
+		cfg.IgnoreCase = true
+	}
+
+	// Contextual -i handling:
+	// If -i is passed and a grep filter is active, -i acts as ignore-case;
+	// if -i is passed without grep, it acts as interactive TUI mode!
+	if interactiveFlag {
+		if cfg.Grep != "" {
+			cfg.IgnoreCase = true
+		} else {
+			cfg.Interactive = true
+		}
+	}
 
 	if limitFlag > 0 {
 		cfg.Limit = limitFlag

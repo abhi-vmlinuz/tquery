@@ -1,7 +1,6 @@
 package render
 
 import (
-	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -10,7 +9,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/olekukonko/tablewriter"
+	"github.com/charmbracelet/lipgloss/table"
+	"github.com/tquery/tquery/pkg/filter"
 	"github.com/tquery/tquery/pkg/parser"
 )
 
@@ -27,18 +27,20 @@ const (
 
 // Styles using Lipgloss
 var (
-	HeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")) // Pink/Magenta
-	NumberStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))            // Yellow
-	BoolStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("120"))            // Light Green
-	NullStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Italic(true) // Grey
-	StringStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))            // White
-	BorderColor  = lipgloss.Color("240")
+	HeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#EC4899"))   // Bright Pink
+	NumberStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FBBF24"))              // Amber/Yellow
+	BoolStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))              // Emerald Green
+	NullStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748B")).Italic(true) // Slate Grey
+	StringStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F8FAFC"))              // Crisp White
+	BorderColor = lipgloss.Color("#475569")                                              // Subtle Border
 )
 
 type RenderOptions struct {
-	Format     Format
-	ShowHeader bool
-	UseColor   bool
+	Format              Format
+	ShowHeader          bool
+	UseColor            bool
+	HighlightPattern    string
+	HighlightIgnoreCase bool
 }
 
 func DefaultOptions() RenderOptions {
@@ -77,51 +79,37 @@ func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) erro
 		return err
 	}
 
-	var buf bytes.Buffer
-	table := tablewriter.NewWriter(&buf)
-
-	table.SetAutoWrapText(true)
-	table.SetAutoFormatHeaders(false)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetCenterSeparator("┼")
-	table.SetColumnSeparator("│")
-	table.SetRowSeparator("─")
-	table.SetHeaderLine(true)
-	table.SetBorder(true)
+	t := table.New().
+		Border(lipgloss.NormalBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(BorderColor)).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == 0 {
+				return HeaderStyle.Padding(0, 1)
+			}
+			return lipgloss.NewStyle().Padding(0, 1)
+		})
 
 	if opts.ShowHeader && len(ds.Headers) > 0 {
-		headers := make([]string, len(ds.Headers))
-		for i, h := range ds.Headers {
-			if opts.UseColor {
-				headers[i] = HeaderStyle.Render(h)
-			} else {
-				headers[i] = h
-			}
-		}
-		table.SetHeader(headers)
+		t.Headers(ds.Headers...)
 	}
 
 	for _, row := range ds.Rows {
 		styledRow := make([]string, len(row))
 		for i, cell := range row {
 			if opts.UseColor {
-				styledRow[i] = colorizeCell(cell)
+				if opts.HighlightPattern != "" {
+					styledRow[i] = filter.Highlight(cell, opts.HighlightPattern, opts.HighlightIgnoreCase)
+				} else {
+					styledRow[i] = colorizeCell(cell)
+				}
 			} else {
 				styledRow[i] = cell
 			}
 		}
-		table.Append(styledRow)
+		t.Row(styledRow...)
 	}
 
-	table.Render()
-
-	tableStr := buf.String()
-	if opts.UseColor {
-		tableStr = lipgloss.NewStyle().BorderForeground(BorderColor).Render(tableStr)
-	}
-
-	_, err := io.WriteString(w, tableStr+"\n")
+	_, err := fmt.Fprintln(w, t.String())
 	return err
 }
 
@@ -140,7 +128,8 @@ func colorizeCell(val string) string {
 
 func renderMarkdown(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
 	if len(ds.Headers) == 0 {
-		return nil
+		_, err := fmt.Fprintln(w, "_(empty)_")
+		return err
 	}
 
 	var sb strings.Builder

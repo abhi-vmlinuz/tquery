@@ -5,7 +5,16 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/tquery/tquery/pkg/parser"
+)
+
+var (
+	// MatchHighlightStyle renders search matches in bold hot-magenta with background
+	MatchHighlightStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color("#E11D48")) // Vibrant red/pink highlight badge
 )
 
 type Options struct {
@@ -105,6 +114,36 @@ func Filter(ds *parser.DataStructure, opts Options) (*parser.DataStructure, erro
 	return newDS, nil
 }
 
+// Highlight highlights occurrences of pattern in text using ANSI colors.
+func Highlight(val string, pattern string, ignoreCase bool) string {
+	if pattern == "" || val == "" {
+		return val
+	}
+
+	// Strip column prefix if any (e.g. "id:google" -> "google")
+	if colonIdx := strings.Index(pattern, ":"); colonIdx > 0 {
+		pattern = pattern[colonIdx+1:]
+	}
+
+	regexPattern := pattern
+	if !strings.ContainsAny(pattern, `^$.*+?()[]{}|\`) {
+		regexPattern = regexp.QuoteMeta(pattern)
+	}
+
+	if ignoreCase && !strings.HasPrefix(regexPattern, "(?i)") {
+		regexPattern = "(?i)" + regexPattern
+	}
+
+	re, err := regexp.Compile(regexPattern)
+	if err != nil {
+		return val
+	}
+
+	return re.ReplaceAllStringFunc(val, func(match string) string {
+		return MatchHighlightStyle.Render(match)
+	})
+}
+
 func buildMatcher(pattern string, ignoreCase bool) (func(string) bool, error) {
 	isRegex := strings.ContainsAny(pattern, `^$.*+?()[]{}|\`)
 
@@ -124,7 +163,7 @@ func buildMatcher(pattern string, ignoreCase bool) (func(string) bool, error) {
 	// Regex path with RE2 linear-time engine
 	regexPattern := pattern
 	if ignoreCase && !strings.HasPrefix(pattern, "(?i)") {
-		regexPattern = "(?i)" + pattern
+		regexPattern = "(?i)" + regexPattern
 	}
 
 	re, err := regexp.Compile(regexPattern)
