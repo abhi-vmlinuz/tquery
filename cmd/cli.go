@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/mattn/go-isatty"
@@ -23,6 +24,7 @@ type Config struct {
 	NoUnwrap    bool
 	NoColor     bool
 	ShowVersion bool
+	Limit       int
 	Query       string
 	FilePath    string
 }
@@ -41,13 +43,12 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	// Auto-detect interactive TUI mode if stdin is terminal and no explicit pipe
 	isTTYStdin := isatty.IsTerminal(os.Stdin.Fd())
 	isTTYStdout := isatty.IsTerminal(os.Stdout.Fd())
 
 	runInteractive := cfg.Interactive
 	if !cfg.Interactive && isTTYStdin && isTTYStdout && cfg.FilePath == "" {
-		// If user runs tquery directly without piping input, prompt help or default interactive if input available
+		// Default CLI behavior
 	}
 
 	if runInteractive {
@@ -59,7 +60,7 @@ func Execute() {
 	}
 
 	// Non-Interactive Pipe Output
-	targetData := any(nil)
+	var targetData any
 	if cfg.Query != "" && cfg.Query != "." {
 		rawObj := parseRawInterface(rawJSON)
 		res, err := engine.Evaluate(cfg.Query, rawObj)
@@ -85,6 +86,16 @@ func Execute() {
 		os.Exit(1)
 	}
 
+	// Apply -<number> / --limit trimming
+	if cfg.Limit > 0 {
+		if len(ds.Rows) > cfg.Limit {
+			ds.Rows = ds.Rows[:cfg.Limit]
+		}
+		if s, ok := ds.Unwrapped.([]any); ok && len(s) > cfg.Limit {
+			ds.Unwrapped = s[:cfg.Limit]
+		}
+	}
+
 	opts := render.RenderOptions{
 		Format:     render.Format(strings.ToLower(cfg.Format)),
 		ShowHeader: !cfg.NoHeaders,
@@ -99,35 +110,61 @@ func Execute() {
 
 func parseFlags() Config {
 	var cfg Config
+	var numericLimit int
 
-	flag.StringVar(&cfg.Format, "f", "table", "Output format: table, markdown, csv, tsv, tree, json")
-	flag.StringVar(&cfg.Format, "format", "table", "Output format: table, markdown, csv, tsv, tree, json")
-	flag.BoolVar(&cfg.Interactive, "i", false, "Launch interactive TUI mode")
-	flag.BoolVar(&cfg.Interactive, "interactive", false, "Launch interactive TUI mode")
-	flag.BoolVar(&cfg.NoHeaders, "n", false, "Hide headers")
-	flag.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
-	flag.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
-	flag.BoolVar(&cfg.NoColor, "no-color", false, "Disable ANSI color formatting")
-	flag.BoolVar(&cfg.ShowVersion, "v", false, "Show version")
-	flag.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
+	// Pre-process arguments to detect -<number> like -10, -50, etc.
+	var filteredArgs []string
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "-") && len(arg) > 1 {
+			// Check if all remaining characters are digits
+			if num, err := strconv.Atoi(arg[1:]); err == nil && num > 0 {
+				numericLimit = num
+				continue
+			}
+		}
+		filteredArgs = append(filteredArgs, arg)
+	}
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tquery [options] [jq_query] [file]\n\n")
+	fs := flag.NewFlagSet("tquery", flag.ExitOnError)
+
+	var limitFlag int
+	fs.StringVar(&cfg.Format, "f", "table", "Output format: table, markdown, csv, tsv, tree, json")
+	fs.StringVar(&cfg.Format, "format", "table", "Output format: table, markdown, csv, tsv, tree, json")
+	fs.BoolVar(&cfg.Interactive, "i", false, "Launch interactive TUI mode")
+	fs.BoolVar(&cfg.Interactive, "interactive", false, "Launch interactive TUI mode")
+	fs.BoolVar(&cfg.NoHeaders, "n", false, "Hide headers")
+	fs.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
+	fs.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
+	fs.BoolVar(&cfg.NoColor, "no-color", false, "Disable ANSI color formatting")
+	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
+	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
+	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
+	fs.BoolVar(&cfg.ShowVersion, "v", false, "Show version")
+	fs.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: tquery [options] [-<number>] [jq_query] [file]\n\n")
 		fmt.Fprintf(os.Stderr, "tquery converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tquery\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tquery -10\n")
 		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tquery '.data[] | {id, owned_by}'\n")
-		fmt.Fprintf(os.Stderr, "  tquery -f markdown '.items' data.json\n")
+		fmt.Fprintf(os.Stderr, "  tquery -5 -f markdown '.items' data.json\n")
 		fmt.Fprintf(os.Stderr, "  tquery -i data.json\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
-	flag.Parse()
+	_ = fs.Parse(filteredArgs)
 
-	args := flag.Args()
+	if limitFlag > 0 {
+		cfg.Limit = limitFlag
+	} else {
+		cfg.Limit = numericLimit
+	}
+
+	args := fs.Args()
 	if len(args) > 0 {
-		// First non-flag arg can be jq query or file path if it starts with file
 		if isFile(args[0]) {
 			cfg.FilePath = args[0]
 		} else {
@@ -177,4 +214,3 @@ func isFile(path string) bool {
 	}
 	return !info.IsDir()
 }
-

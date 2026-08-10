@@ -47,7 +47,7 @@ func Parse(data []byte, autoUnwrap bool) (*DataStructure, error) {
 	case []any:
 		if len(v) == 0 {
 			ds.Type = KindList
-			ds.Headers = []string{"Index", "Value"}
+			ds.Headers = []string{}
 			ds.Rows = [][]string{}
 			return ds, nil
 		}

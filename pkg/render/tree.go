@@ -54,6 +54,10 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 		}
 
 	case []any:
+		if len(v) == 0 {
+			sb.WriteString(" [] (empty)\n")
+			return
+		}
 		sb.WriteString(fmt.Sprintf(" [%d items]\n", len(v)))
 		nextIndent := indent
 		if isLast {

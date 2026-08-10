@@ -47,6 +47,19 @@ tquery -f tree config.json
 
 ---
 
+### `-<number>, -l, --limit <num>`
+Limits the maximum number of output rows/records displayed. Works seamlessly with any number prefix like `-10`, `-25`, `-5`, etc.
+
+```bash
+# Display only the first 10 rows
+curl -s https://api.example.com/models | tquery -10
+
+# Limit with query
+tquery -5 '.data[]' data.json
+```
+
+---
+
 ### `-i, --interactive`
 Launches the full-screen interactive Terminal User Interface (TUI). Allows real-time typing of JQ filters, keyboard navigation, row inspection, and instant view switching.
 

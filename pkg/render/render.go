@@ -68,6 +68,15 @@ func Render(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
 }
 
 func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
+	if len(ds.Headers) == 0 && len(ds.Rows) == 0 {
+		msg := "[] (empty)"
+		if opts.UseColor {
+			msg = NullStyle.Render(msg)
+		}
+		_, err := fmt.Fprintln(w, msg)
+		return err
+	}
+
 	var buf bytes.Buffer
 	table := tablewriter.NewWriter(&buf)
 

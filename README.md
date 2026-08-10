@@ -41,6 +41,7 @@ $ curl -s https://inference.dahl.global/v1/models | tquery
 
 - **Table formatter** — auto-detects arrays of objects and generates aligned, syntax-highlighted tables
 - **Auto-unwrapping** — automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
+- **Row limit flag (`-<number>`)** — quick Unix-style row limiting (e.g. `tquery -10` or `tquery -l 5`)
 - **Embedded jq engine** — native Go JQ query processing powered by `gojq`; no external `jq` binary required
 - **Interactive TUI mode** (`-i`) — live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
 - **Multi-format export** — `table`, `markdown`, `csv`, `tsv`, `tree`, `json`
