@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "id": "MiniMaxAI/MiniMax-M2.7",
+      "object": "model",
+      "created": 1677610602,
+      "owned_by": "gonka"
+    },
+    {
+      "id": "moonshotai/Kimi-K2.6",
+      "object": "model",
+      "created": 1677610602,
+      "owned_by": "gonka"
+    }
+  ],
+  "object": "list"
+}
