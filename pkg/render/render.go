@@ -39,6 +39,7 @@ type RenderOptions struct {
 	Format              Format
 	ShowHeader          bool
 	UseColor            bool
+	Limit               int
 	HighlightPattern    string
 	HighlightIgnoreCase bool
 }
@@ -90,10 +91,23 @@ func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) erro
 		})
 
 	if opts.ShowHeader && len(ds.Headers) > 0 {
-		t.Headers(ds.Headers...)
+		headers := make([]string, len(ds.Headers))
+		for i, h := range ds.Headers {
+			if opts.UseColor {
+				headers[i] = HeaderStyle.Render(h)
+			} else {
+				headers[i] = h
+			}
+		}
+		t.Headers(headers...)
 	}
 
-	for _, row := range ds.Rows {
+	rows := ds.Rows
+	if opts.Limit > 0 && len(rows) > opts.Limit {
+		rows = rows[:opts.Limit]
+	}
+
+	for _, row := range rows {
 		styledRow := make([]string, len(row))
 		for i, cell := range row {
 			if opts.UseColor {
@@ -133,18 +147,19 @@ func renderMarkdown(w io.Writer, ds *parser.DataStructure, opts RenderOptions) e
 	}
 
 	var sb strings.Builder
-	// Header line
 	sb.WriteString("| " + strings.Join(ds.Headers, " | ") + " |\n")
-	// Separator line
 	seps := make([]string, len(ds.Headers))
 	for i := range seps {
 		seps[i] = "---"
 	}
 	sb.WriteString("| " + strings.Join(seps, " | ") + " |\n")
 
-	// Data rows
-	for _, row := range ds.Rows {
-		// Escape pipeline characters in markdown table cells
+	rows := ds.Rows
+	if opts.Limit > 0 && len(rows) > opts.Limit {
+		rows = rows[:opts.Limit]
+	}
+
+	for _, row := range rows {
 		escapedRow := make([]string, len(row))
 		for i, cell := range row {
 			escapedRow[i] = strings.ReplaceAll(cell, "|", "\\|")
@@ -168,7 +183,12 @@ func renderCSV(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error 
 		}
 	}
 
-	for _, row := range ds.Rows {
+	rows := ds.Rows
+	if opts.Limit > 0 && len(rows) > opts.Limit {
+		rows = rows[:opts.Limit]
+	}
+
+	for _, row := range rows {
 		if err := writer.Write(row); err != nil {
 			return err
 		}
@@ -179,7 +199,13 @@ func renderCSV(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error 
 }
 
 func renderJSON(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
-	b, err := json.MarshalIndent(ds.Unwrapped, "", "  ")
+	var target = ds.Unwrapped
+	if opts.Limit > 0 {
+		if slice, ok := target.([]any); ok && len(slice) > opts.Limit {
+			target = slice[:opts.Limit]
+		}
+	}
+	b, err := json.MarshalIndent(target, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -189,6 +215,21 @@ func renderJSON(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error
 
 func renderTree(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
 	treeStr := BuildTree(ds.Unwrapped, opts.UseColor, opts.HighlightPattern, opts.HighlightIgnoreCase)
+	if opts.Limit > 0 {
+		lines := strings.Split(treeStr, "\n")
+		var cleanLines []string
+		for _, line := range lines {
+			if line != "" {
+				cleanLines = append(cleanLines, line)
+			}
+		}
+		if len(cleanLines) > opts.Limit {
+			cleanLines = cleanLines[:opts.Limit]
+			treeStr = strings.Join(cleanLines, "\n") + "\n..."
+		} else {
+			treeStr = strings.Join(cleanLines, "\n")
+		}
+	}
 	_, err := io.WriteString(w, treeStr+"\n")
 	return err
 }

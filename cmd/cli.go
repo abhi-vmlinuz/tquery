@@ -16,7 +16,7 @@ import (
 	"github.com/tquery/tquery/pkg/tui"
 )
 
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 type Config struct {
 	Format      string
@@ -145,6 +145,7 @@ func Execute() {
 		Format:              render.Format(chosenFormat),
 		ShowHeader:          !cfg.NoHeaders,
 		UseColor:            !cfg.NoColor,
+		Limit:               cfg.Limit,
 		HighlightPattern:    cfg.Grep,
 		HighlightIgnoreCase: cfg.IgnoreCase,
 	}
