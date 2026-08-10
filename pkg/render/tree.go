@@ -14,14 +14,14 @@ var (
 	BranchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))          // Grey
 )
 
-// BuildTree formats any JSON interface into a beautiful ASCII tree string with optional match highlighting.
-func BuildTree(val any, useColor bool, highlightPattern string, ignoreCase bool) string {
+// BuildTree formats any JSON interface into a beautiful ASCII tree string with multi-pattern match highlighting.
+func BuildTree(val any, useColor bool, patterns []string, ignoreCase bool) string {
 	var sb strings.Builder
-	buildTreeInternal(&sb, "", "root", val, true, useColor, highlightPattern, ignoreCase)
+	buildTreeInternal(&sb, "", "root", val, true, useColor, patterns, ignoreCase)
 	return sb.String()
 }
 
-func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, isLast bool, useColor bool, pattern string, ignoreCase bool) {
+func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, isLast bool, useColor bool, patterns []string, ignoreCase bool) {
 	connector := "├── "
 	if isLast {
 		connector = "└── "
@@ -30,8 +30,8 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 	displayKey := key
 	if useColor {
 		sb.WriteString(indent + BranchStyle.Render(connector))
-		if pattern != "" {
-			displayKey = filter.Highlight(key, pattern, ignoreCase)
+		if len(patterns) > 0 {
+			displayKey = filter.HighlightMulti(key, patterns, ignoreCase)
 		} else {
 			displayKey = KeyStyle.Render(key)
 		}
@@ -57,7 +57,7 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 		sort.Strings(keys)
 
 		for i, k := range keys {
-			buildTreeInternal(sb, nextIndent, k, v[k], i == len(keys)-1, useColor, pattern, ignoreCase)
+			buildTreeInternal(sb, nextIndent, k, v[k], i == len(keys)-1, useColor, patterns, ignoreCase)
 		}
 
 	case []any:
@@ -75,14 +75,14 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 
 		for i, item := range v {
 			itemKey := fmt.Sprintf("[%d]", i)
-			buildTreeInternal(sb, nextIndent, itemKey, item, i == len(v)-1, useColor, pattern, ignoreCase)
+			buildTreeInternal(sb, nextIndent, itemKey, item, i == len(v)-1, useColor, patterns, ignoreCase)
 		}
 
 	default:
 		formatted := fmt.Sprintf("%v", v)
 		if useColor {
-			if pattern != "" {
-				formatted = filter.Highlight(formatted, pattern, ignoreCase)
+			if len(patterns) > 0 {
+				formatted = filter.HighlightMulti(formatted, patterns, ignoreCase)
 			} else {
 				formatted = colorizeCell(formatted)
 			}

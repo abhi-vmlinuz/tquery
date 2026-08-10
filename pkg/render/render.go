@@ -40,7 +40,7 @@ type RenderOptions struct {
 	ShowHeader          bool
 	UseColor            bool
 	Limit               int
-	HighlightPattern    string
+	HighlightPatterns   []string
 	HighlightIgnoreCase bool
 }
 
@@ -111,8 +111,8 @@ func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) erro
 		styledRow := make([]string, len(row))
 		for i, cell := range row {
 			if opts.UseColor {
-				if opts.HighlightPattern != "" {
-					styledRow[i] = filter.Highlight(cell, opts.HighlightPattern, opts.HighlightIgnoreCase)
+				if len(opts.HighlightPatterns) > 0 {
+					styledRow[i] = filter.HighlightMulti(cell, opts.HighlightPatterns, opts.HighlightIgnoreCase)
 				} else {
 					styledRow[i] = colorizeCell(cell)
 				}
@@ -214,7 +214,7 @@ func renderJSON(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error
 }
 
 func renderTree(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
-	treeStr := BuildTree(ds.Unwrapped, opts.UseColor, opts.HighlightPattern, opts.HighlightIgnoreCase)
+	treeStr := BuildTree(ds.Unwrapped, opts.UseColor, opts.HighlightPatterns, opts.HighlightIgnoreCase)
 	if opts.Limit > 0 {
 		lines := strings.Split(treeStr, "\n")
 		var cleanLines []string

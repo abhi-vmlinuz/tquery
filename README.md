@@ -116,9 +116,14 @@ cp completions/tq.zsh "${fpath[1]}/_tq"
 curl -s https://integrate.api.nvidia.com/v1/models | tq
 ```
 
-**Filter with regex pattern**
+**Filter with single or multiple regex patterns (OR matching)**
 ```bash
-curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'deepseek|google'
+curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'deepseek' -g 'google'
+```
+
+**Strict matching (AND - require all patterns in each record)**
+```bash
+docker inspect my-container | tq -g 'nginx' -g 'running' --strict
 ```
 
 **Path-pruning grep on complex DevOps objects (Docker / Kubernetes)**

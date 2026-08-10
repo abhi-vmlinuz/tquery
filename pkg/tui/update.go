@@ -157,7 +157,7 @@ func (m *Model) refreshView() {
 	// Rebuild Viewport content for Tree / JSON
 	switch m.ViewMode {
 	case ViewTree:
-		m.Viewport.SetContent(render.BuildTree(m.DataStruct.Unwrapped, true, "", false))
+		m.Viewport.SetContent(render.BuildTree(m.DataStruct.Unwrapped, true, nil, false))
 	case ViewJSON:
 		b, _ := json.MarshalIndent(m.DataStruct.Unwrapped, "", "  ")
 		m.Viewport.SetContent(string(b))

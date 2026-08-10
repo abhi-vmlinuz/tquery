@@ -10,54 +10,52 @@ import (
 )
 
 var (
-	// MatchHighlightStyle renders search matches in bold hot-magenta with background
+	// MatchHighlightStyle renders search matches in bold hot-magenta badge
 	MatchHighlightStyle = lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#E11D48")) // Vibrant red/pink highlight badge
+		Background(lipgloss.Color("#E11D48"))
 )
 
-type Options struct {
-	Pattern     string
+type MultiOptions struct {
+	Patterns    []string
 	InvertMatch bool
 	IgnoreCase  bool
+	Strict      bool
 }
 
-// Filter applies regex or literal pattern filtering across a DataStructure's rows and unwrapped data.
-func Filter(ds *parser.DataStructure, opts Options) (*parser.DataStructure, error) {
-	if opts.Pattern == "" || ds == nil || len(ds.Rows) == 0 {
+type PatternMatcher struct {
+	Original    string
+	Pattern     string
+	TargetCol   string
+	MatcherFunc func(string) bool
+	IsRegex     bool
+}
+
+// Filter applies single or multi-pattern filtering across a DataStructure.
+func Filter(ds *parser.DataStructure, opts MultiOptions) (*parser.DataStructure, error) {
+	if len(opts.Patterns) == 0 || ds == nil || len(ds.Rows) == 0 {
 		return ds, nil
 	}
 
-	pattern := opts.Pattern
-	targetCol := ""
-
-	// Check for column-scoped search like "status:Running" or "id:MiniMax"
-	if colonIdx := strings.Index(pattern, ":"); colonIdx > 0 {
-		potentialCol := pattern[:colonIdx]
-		potentialPattern := pattern[colonIdx+1:]
-
-		for _, h := range ds.Headers {
-			if strings.EqualFold(h, potentialCol) {
-				targetCol = h
-				pattern = potentialPattern
-				break
-			}
-		}
-	}
-
-	// Prepare Matcher: regex or fast literal substring
-	matcher, err := buildMatcher(pattern, opts.IgnoreCase)
+	matchers, err := BuildPatternMatchers(opts.Patterns, opts.IgnoreCase)
 	if err != nil {
-		return nil, fmt.Errorf("invalid grep pattern %q: %w", pattern, err)
+		return nil, err
 	}
 
-	colIdx := -1
-	if targetCol != "" {
-		for i, h := range ds.Headers {
-			if h == targetCol {
-				colIdx = i
-				break
+	numPatterns := len(matchers)
+	fullMask := (uint64(1) << numPatterns) - 1
+
+	// Map column names to header indices
+	colIndices := make([]int, numPatterns)
+	for pIdx, m := range matchers {
+		colIndices[pIdx] = -1
+		if m.TargetCol != "" {
+			for i, h := range ds.Headers {
+				if strings.EqualFold(h, m.TargetCol) {
+					colIndices[pIdx] = i
+					break
+				}
 			}
 		}
 	}
@@ -66,18 +64,29 @@ func Filter(ds *parser.DataStructure, opts Options) (*parser.DataStructure, erro
 	var matchedIndices []int
 
 	for i, row := range ds.Rows {
-		matched := false
+		var rowMask uint64 = 0
 
-		if colIdx >= 0 && colIdx < len(row) {
-			matched = matcher(row[colIdx])
-		} else {
-			// Scan all cells in the row
-			for _, cell := range row {
-				if matcher(cell) {
-					matched = true
-					break
+		for pIdx, m := range matchers {
+			colIdx := colIndices[pIdx]
+			if colIdx >= 0 && colIdx < len(row) {
+				if m.MatcherFunc(row[colIdx]) {
+					rowMask |= (1 << pIdx)
+				}
+			} else {
+				for _, cell := range row {
+					if m.MatcherFunc(cell) {
+						rowMask |= (1 << pIdx)
+						break
+					}
 				}
 			}
+		}
+
+		matched := false
+		if opts.Strict {
+			matched = (rowMask == fullMask)
+		} else {
+			matched = (rowMask != 0)
 		}
 
 		if opts.InvertMatch {
@@ -90,7 +99,6 @@ func Filter(ds *parser.DataStructure, opts Options) (*parser.DataStructure, erro
 		}
 	}
 
-	// Build new DataStructure with filtered rows
 	newDS := &parser.DataStructure{
 		Raw:     ds.Raw,
 		Type:    ds.Type,
@@ -98,7 +106,6 @@ func Filter(ds *parser.DataStructure, opts Options) (*parser.DataStructure, erro
 		Rows:    filteredRows,
 	}
 
-	// Filter Unwrapped slice if applicable
 	if slice, ok := ds.Unwrapped.([]any); ok {
 		var newSlice []any
 		for _, idx := range matchedIndices {
@@ -114,13 +121,55 @@ func Filter(ds *parser.DataStructure, opts Options) (*parser.DataStructure, erro
 	return newDS, nil
 }
 
-// Highlight highlights occurrences of pattern in text using ANSI colors.
+// BuildPatternMatchers parses pattern strings into independent matchers.
+func BuildPatternMatchers(patterns []string, ignoreCase bool) ([]PatternMatcher, error) {
+	matchers := make([]PatternMatcher, len(patterns))
+	for i, p := range patterns {
+		original := p
+		targetCol := ""
+		pattern := p
+
+		if colonIdx := strings.Index(p, ":"); colonIdx > 0 {
+			targetCol = p[:colonIdx]
+			pattern = p[colonIdx+1:]
+		}
+
+		matcherFunc, err := buildMatcher(pattern, ignoreCase)
+		if err != nil {
+			return nil, fmt.Errorf("invalid grep pattern %q: %w", p, err)
+		}
+
+		isRegex := strings.ContainsAny(pattern, `^$.*+?()[]{}|\`)
+		matchers[i] = PatternMatcher{
+			Original:    original,
+			Pattern:     pattern,
+			TargetCol:   targetCol,
+			MatcherFunc: matcherFunc,
+			IsRegex:     isRegex,
+		}
+	}
+	return matchers, nil
+}
+
+// HighlightMulti highlights all patterns in text using ANSI colors, preserving original casing.
+func HighlightMulti(val string, patterns []string, ignoreCase bool) string {
+	if len(patterns) == 0 || val == "" {
+		return val
+	}
+
+	result := val
+	for _, p := range patterns {
+		result = Highlight(result, p, ignoreCase)
+	}
+	return result
+}
+
+// Highlight highlights occurrences of a single pattern in text using ANSI colors.
 func Highlight(val string, pattern string, ignoreCase bool) string {
 	if pattern == "" || val == "" {
 		return val
 	}
 
-	// Strip column prefix if any (e.g. "id:google" -> "google")
 	if colonIdx := strings.Index(pattern, ":"); colonIdx > 0 {
 		pattern = pattern[colonIdx+1:]
 	}
@@ -148,7 +197,6 @@ func buildMatcher(pattern string, ignoreCase bool) (func(string) bool, error) {
 	isRegex := strings.ContainsAny(pattern, `^$.*+?()[]{}|\`)
 
 	if !isRegex {
-		// Fast path: literal substring match
 		if ignoreCase {
 			lowerPattern := strings.ToLower(pattern)
 			return func(s string) bool {
@@ -160,7 +208,6 @@ func buildMatcher(pattern string, ignoreCase bool) (func(string) bool, error) {
 		}, nil
 	}
 
-	// Regex path with RE2 linear-time engine
 	regexPattern := pattern
 	if ignoreCase && !strings.HasPrefix(pattern, "(?i)") {
 		regexPattern = "(?i)" + regexPattern

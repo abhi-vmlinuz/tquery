@@ -5,88 +5,125 @@ import (
 	"strings"
 )
 
-// PruneJSON recursively filters an arbitrary JSON structure down to only branches matching the pattern.
-func PruneJSON(v any, pattern string, ignoreCase bool, invert bool) (any, bool) {
-	if pattern == "" {
+// PruneJSON recursively filters an arbitrary JSON structure down to only branches matching the patterns.
+func PruneJSON(v any, opts MultiOptions) (any, bool) {
+	if len(opts.Patterns) == 0 {
 		return v, true
 	}
 
-	targetCol := ""
-	if colonIdx := strings.Index(pattern, ":"); colonIdx > 0 {
-		targetCol = pattern[:colonIdx]
-		pattern = pattern[colonIdx+1:]
-	}
-
-	matcher, err := buildMatcher(pattern, ignoreCase)
+	matchers, err := BuildPatternMatchers(opts.Patterns, opts.IgnoreCase)
 	if err != nil {
 		return v, false
 	}
 
-	result, matched := pruneRecursive(v, "", matcher, targetCol)
-	if invert {
+	numPatterns := len(matchers)
+	fullMask := (uint64(1) << numPatterns) - 1
+
+	result, _, matched := pruneRecursiveMulti(v, "", matchers, opts.Strict, fullMask)
+	if opts.InvertMatch {
 		matched = !matched
 	}
 
 	return result, matched
 }
 
-func pruneRecursive(v any, keyContext string, matcher func(string) bool, targetCol string) (any, bool) {
+func pruneRecursiveMulti(v any, keyContext string, matchers []PatternMatcher, strict bool, fullMask uint64) (any, uint64, bool) {
 	if v == nil {
-		matches := (targetCol == "" || strings.EqualFold(keyContext, targetCol)) && matcher("null")
-		return nil, matches
+		var mask uint64 = 0
+		for i, m := range matchers {
+			if (m.TargetCol == "" || strings.EqualFold(keyContext, m.TargetCol)) && m.MatcherFunc("null") {
+				mask |= (1 << i)
+			}
+		}
+		if strict {
+			return nil, mask, (mask == fullMask)
+		}
+		return nil, mask, (mask != 0)
 	}
 
 	switch node := v.(type) {
 	case map[string]any:
 		filteredMap := make(map[string]any)
-		anyMatched := false
+		var combinedMask uint64 = 0
 
 		for k, child := range node {
-			// If key itself matches pattern
-			keyMatches := (targetCol == "" || strings.EqualFold(k, targetCol)) && matcher(k)
-			if keyMatches && targetCol == "" {
-				filteredMap[k] = child
-				anyMatched = true
-				continue
+			var keyMask uint64 = 0
+			for i, m := range matchers {
+				if (m.TargetCol == "" || strings.EqualFold(k, m.TargetCol)) && m.MatcherFunc(k) {
+					keyMask |= (1 << i)
+				}
 			}
 
-			// Check children
-			prunedChild, childMatched := pruneRecursive(child, k, matcher, targetCol)
-			if childMatched {
-				filteredMap[k] = prunedChild
-				anyMatched = true
+			// Recursively prune child
+			prunedChild, childMask, childMatched := pruneRecursiveMulti(child, k, matchers, false, fullMask)
+
+			totalBranchMask := keyMask | childMask
+			if totalBranchMask != 0 {
+				combinedMask |= totalBranchMask
+				if childMatched {
+					filteredMap[k] = prunedChild
+				} else if keyMask != 0 {
+					filteredMap[k] = child
+				}
 			}
 		}
 
-		if anyMatched {
-			return filteredMap, true
+		if strict {
+			if combinedMask == fullMask {
+				return filteredMap, combinedMask, true
+			}
+			return nil, combinedMask, false
 		}
-		return nil, false
+
+		if combinedMask != 0 {
+			return filteredMap, combinedMask, true
+		}
+		return nil, 0, false
 
 	case []any:
 		var filteredSlice []any
-		anyMatched := false
+		var combinedMask uint64 = 0
 
-		for i, item := range node {
-			indexKey := fmt.Sprintf("[%d]", i)
-			prunedItem, itemMatched := pruneRecursive(item, indexKey, matcher, targetCol)
-			if itemMatched {
-				filteredSlice = append(filteredSlice, prunedItem)
-				anyMatched = true
+		// Detect if slice contains logical records (maps)
+		isListOfMaps := true
+		for _, item := range node {
+			if _, ok := item.(map[string]any); !ok {
+				isListOfMaps = false
+				break
 			}
 		}
 
-		if anyMatched {
-			return filteredSlice, true
+		for i, item := range node {
+			indexKey := fmt.Sprintf("[%d]", i)
+
+			// If list of records and strict mode is active, each record must satisfy all patterns
+			itemStrict := strict && isListOfMaps
+			prunedItem, itemMask, itemMatched := pruneRecursiveMulti(item, indexKey, matchers, itemStrict, fullMask)
+
+			if itemMatched {
+				filteredSlice = append(filteredSlice, prunedItem)
+				combinedMask |= itemMask
+			}
 		}
-		return nil, false
+
+		if len(filteredSlice) > 0 {
+			return filteredSlice, combinedMask, true
+		}
+		return nil, combinedMask, false
 
 	default:
 		valStr := fmt.Sprintf("%v", node)
-		colMatches := targetCol == "" || strings.EqualFold(keyContext, targetCol)
-		if colMatches && matcher(valStr) {
-			return node, true
+		var mask uint64 = 0
+		for i, m := range matchers {
+			colMatches := (m.TargetCol == "" || strings.EqualFold(keyContext, m.TargetCol))
+			if colMatches && m.MatcherFunc(valStr) {
+				mask |= (1 << i)
+			}
 		}
-		return nil, false
+
+		if strict {
+			return node, mask, (mask == fullMask)
+		}
+		return node, mask, (mask != 0)
 	}
 }

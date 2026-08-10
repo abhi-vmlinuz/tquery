@@ -21,13 +21,51 @@ func TestFilterLiteral(t *testing.T) {
 		},
 	}
 
-	filtered, err := Filter(ds, Options{Pattern: "Running"})
+	filtered, err := Filter(ds, MultiOptions{Patterns: []string{"Running"}})
 	if err != nil {
 		t.Fatalf("Filter error: %v", err)
 	}
 
 	if len(filtered.Rows) != 2 {
 		t.Errorf("Expected 2 rows, got %d", len(filtered.Rows))
+	}
+}
+
+func TestFilterMulti_OR_and_Strict(t *testing.T) {
+	ds := &parser.DataStructure{
+		Headers: []string{"name", "status"},
+		Rows: [][]string{
+			{"nginx", "Running"},
+			{"nginx", "Stopped"},
+			{"redis", "Running"},
+		},
+	}
+
+	// 1. OR mode
+	filteredOR, err := Filter(ds, MultiOptions{
+		Patterns: []string{"nginx", "Running"},
+		Strict:   false,
+	})
+	if err != nil {
+		t.Fatalf("OR Filter error: %v", err)
+	}
+	if len(filteredOR.Rows) != 3 {
+		t.Errorf("Expected 3 rows in OR mode, got %d", len(filteredOR.Rows))
+	}
+
+	// 2. Strict mode (AND)
+	filteredStrict, err := Filter(ds, MultiOptions{
+		Patterns: []string{"nginx", "Running"},
+		Strict:   true,
+	})
+	if err != nil {
+		t.Fatalf("Strict Filter error: %v", err)
+	}
+	if len(filteredStrict.Rows) != 1 {
+		t.Fatalf("Expected 1 row in Strict mode, got %d", len(filteredStrict.Rows))
+	}
+	if filteredStrict.Rows[0][0] != "nginx" || filteredStrict.Rows[0][1] != "Running" {
+		t.Errorf("Unexpected row in strict mode: %v", filteredStrict.Rows[0])
 	}
 }
 
@@ -41,7 +79,7 @@ func TestFilterInvert(t *testing.T) {
 		},
 	}
 
-	filtered, err := Filter(ds, Options{Pattern: "Stopped", InvertMatch: true})
+	filtered, err := Filter(ds, MultiOptions{Patterns: []string{"Stopped"}, InvertMatch: true})
 	if err != nil {
 		t.Fatalf("Filter error: %v", err)
 	}
@@ -60,8 +98,7 @@ func TestFilterColumnScoped(t *testing.T) {
 		},
 	}
 
-	// Filter where role column equals admin
-	filtered, err := Filter(ds, Options{Pattern: "role:admin"})
+	filtered, err := Filter(ds, MultiOptions{Patterns: []string{"role:admin"}})
 	if err != nil {
 		t.Fatalf("Filter error: %v", err)
 	}
@@ -85,7 +122,7 @@ func TestFilterRegex(t *testing.T) {
 		},
 	}
 
-	filtered, err := Filter(ds, Options{Pattern: `^model-v\d+\.\d+`})
+	filtered, err := Filter(ds, MultiOptions{Patterns: []string{`^model-v\d+\.\d+`}})
 	if err != nil {
 		t.Fatalf("Filter error: %v", err)
 	}

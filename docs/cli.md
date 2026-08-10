@@ -37,18 +37,31 @@ tq -5 '.data[]' data.json
 
 ---
 
-### `-g, --grep <pattern>`
-Filters rows matching a regex or literal string pattern across all columns, while keeping table headers and borders intact.
+### `-g, --grep <pattern>` (Multiple patterns supported)
+Filters rows or tree branches matching regex or string patterns. You can specify `-g` (or `-e`) multiple times.
 
-- Supports column-scoped searching via `<column>:<pattern>` (e.g. `-g "status:Running"`).
-- Automatically utilizes linear-time RE2 regex and vectorized literal search.
+- **Default (OR matching)**: Shows branches/rows matching Pattern A **OR** Pattern B.
+- **Column-scoped**: `<column>:<pattern>` (e.g. `-g "status:Running"`).
 
 ```bash
+# Search multiple patterns (OR)
+tq -g 'nginx' -g 'running' data.json
+
 # Regex search
 tq -g 'MiniMax|meta' data.json
+```
 
-# Column-specific search
-tq -g 'owned_by:deepseek' data.json
+---
+
+### `--strict`
+Enforces strict **AND** matching across all supplied `-g` / `-e` patterns.
+
+- A logical record or object is only retained if **all** specified patterns are present within that record.
+- Non-matching sibling fields and unrelated branches are pruned.
+
+```bash
+# Only show containers that are both 'nginx' AND 'Running'
+docker inspect my-container | tq -g 'nginx' -g 'Running' --strict
 ```
 
 ---

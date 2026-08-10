@@ -16,7 +16,7 @@ import (
 	"github.com/tquery/tquery/pkg/tui"
 )
 
-const Version = "0.1.1"
+const Version = "0.1.2"
 
 type Config struct {
 	Format      string
@@ -26,7 +26,8 @@ type Config struct {
 	NoColor     bool
 	ShowVersion bool
 	Limit       int
-	Grep        string
+	Patterns    []string
+	Strict      bool
 	InvertMatch bool
 	IgnoreCase  bool
 	Query       string
@@ -90,14 +91,21 @@ func Execute() {
 		}
 	}
 
-	// 3. Universal Grep across Tree, JSON, and Tabular Formats
-	if cfg.Grep != "" && (chosenFormat == "tree" || chosenFormat == "json") {
-		pruned, matched := filter.PruneJSON(targetData, cfg.Grep, cfg.IgnoreCase, cfg.InvertMatch)
+	// 3. Universal Multi-Pattern Search & Path Pruning
+	if len(cfg.Patterns) > 0 {
+		pruned, matched := filter.PruneJSON(targetData, filter.MultiOptions{
+			Patterns:    cfg.Patterns,
+			InvertMatch: cfg.InvertMatch,
+			IgnoreCase:  cfg.IgnoreCase,
+			Strict:      cfg.Strict,
+		})
 		if !matched {
 			if chosenFormat == "tree" {
 				fmt.Fprintln(os.Stdout, "[] (no matching branches)")
-			} else {
+			} else if chosenFormat == "json" {
 				fmt.Fprintln(os.Stdout, "{}")
+			} else {
+				fmt.Fprintln(os.Stdout, "[] (no matching records)")
 			}
 			return
 		}
@@ -117,21 +125,7 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	// 4. Tabular Grep Filter (for Table, Markdown, CSV)
-	if cfg.Grep != "" && chosenFormat != "tree" && chosenFormat != "json" {
-		filteredDS, err := filter.Filter(ds, filter.Options{
-			Pattern:     cfg.Grep,
-			InvertMatch: cfg.InvertMatch,
-			IgnoreCase:  cfg.IgnoreCase,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Grep error: %v\n", err)
-			os.Exit(1)
-		}
-		ds = filteredDS
-	}
-
-	// 5. Apply -<number> / --limit trimming
+	// 4. Apply -<number> / --limit trimming
 	if cfg.Limit > 0 {
 		if len(ds.Rows) > cfg.Limit {
 			ds.Rows = ds.Rows[:cfg.Limit]
@@ -146,7 +140,7 @@ func Execute() {
 		ShowHeader:          !cfg.NoHeaders,
 		UseColor:            !cfg.NoColor,
 		Limit:               cfg.Limit,
-		HighlightPattern:    cfg.Grep,
+		HighlightPatterns:   cfg.Patterns,
 		HighlightIgnoreCase: cfg.IgnoreCase,
 	}
 
@@ -168,7 +162,7 @@ func parseFlags() Config {
 	for i := 0; i < len(rawArgs); i++ {
 		arg := rawArgs[i]
 
-		// 1. Direct Shape Shortcuts (--tree, --table, --json, --raw, --markdown, --csv, --tsv)
+		// 1. Direct Shape Shortcuts
 		switch arg {
 		case "--tree":
 			cfg.Format = "tree"
@@ -188,6 +182,9 @@ func parseFlags() Config {
 		case "--tsv":
 			cfg.Format = "tsv"
 			continue
+		case "--strict":
+			cfg.Strict = true
+			continue
 		}
 
 		// 2. Detect -<number> (e.g. -10, -5)
@@ -198,7 +195,16 @@ func parseFlags() Config {
 			}
 		}
 
-		// 3. Detect combined grep flags like -gi, -gv, -gvi, -giv
+		// 3. Detect -g / -e pattern arguments
+		if arg == "-g" || arg == "-e" || arg == "--grep" {
+			if i+1 < len(rawArgs) {
+				cfg.Patterns = append(cfg.Patterns, rawArgs[i+1])
+				i++
+				continue
+			}
+		}
+
+		// 4. Detect combined grep flags like -gi, -gv, -gvi, -giv
 		if strings.HasPrefix(arg, "-g") && len(arg) > 2 {
 			subFlags := arg[2:]
 			if strings.Contains(subFlags, "i") {
@@ -209,17 +215,10 @@ func parseFlags() Config {
 			}
 
 			if i+1 < len(rawArgs) && !strings.HasPrefix(rawArgs[i+1], "-") {
-				cfg.Grep = rawArgs[i+1]
+				cfg.Patterns = append(cfg.Patterns, rawArgs[i+1])
 				i++
 				continue
 			}
-			continue
-		}
-
-		// 4. Detect -e <pattern>
-		if arg == "-e" && i+1 < len(rawArgs) {
-			cfg.Grep = rawArgs[i+1]
-			i++
 			continue
 		}
 
@@ -229,11 +228,11 @@ func parseFlags() Config {
 	fs := flag.NewFlagSet("tq", flag.ExitOnError)
 
 	var limitFlag int
-	var grepFlag string
 	var invertFlag bool
 	var ignoreCaseFlag bool
 	var interactiveFlag bool
 	var formatFlag string
+	var strictFlag bool
 
 	fs.StringVar(&formatFlag, "f", "", "Output format: table, tree, markdown, csv, tsv, json")
 	fs.StringVar(&formatFlag, "format", "", "Output format: table, tree, markdown, csv, tsv, json")
@@ -247,36 +246,34 @@ func parseFlags() Config {
 	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
 	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
 	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
-	fs.StringVar(&grepFlag, "g", "", "Filter rows or tree branches matching regex/pattern")
-	fs.StringVar(&grepFlag, "grep", "", "Filter rows or tree branches matching regex/pattern")
 	fs.BoolVar(&invertFlag, "v", false, "Invert match (select non-matching rows)")
 	fs.BoolVar(&invertFlag, "V", false, "Invert match (select non-matching rows)")
 	fs.BoolVar(&invertFlag, "invert", false, "Invert match (select non-matching rows)")
 	fs.BoolVar(&invertFlag, "invert-match", false, "Invert match (select non-matching rows)")
 	fs.BoolVar(&ignoreCaseFlag, "I", false, "Case-insensitive grep match")
 	fs.BoolVar(&ignoreCaseFlag, "ignore-case", false, "Case-insensitive grep match")
+	fs.BoolVar(&strictFlag, "strict", false, "Strict matching: require all supplied patterns to match (AND)")
 	fs.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tq [options] [--tree|--table|--json] [-<number>] [-g <pattern>] [jq_query] [file]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: tq [options] [--tree|--table|--json] [-<number>] [-g <pat1> -g <pat2>] [--strict] [jq_query] [file]\n\n")
 		fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
+		fmt.Fprintf(os.Stderr, "Multi-Pattern Search:\n")
+		fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter by pattern (can be specified multiple times for OR)\n")
+		fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
+		fmt.Fprintf(os.Stderr, "  --strict                Strict matching: require all supplied patterns to match (AND)\n")
+		fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi          Combined grep flags (ignore case, invert match)\n")
+		fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match\n\n")
 		fmt.Fprintf(os.Stderr, "Shape Shortcuts:\n")
 		fmt.Fprintf(os.Stderr, "  --tree                  Force hierarchical tree view\n")
 		fmt.Fprintf(os.Stderr, "  --table                 Force tabular view\n")
 		fmt.Fprintf(os.Stderr, "  --json, --raw           Force formatted JSON output\n")
 		fmt.Fprintf(os.Stderr, "  --markdown, --md        Force markdown table output\n")
 		fmt.Fprintf(os.Stderr, "  --csv, --tsv            Force delimited data output\n\n")
-		fmt.Fprintf(os.Stderr, "Grep Options:\n")
-		fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter rows/tree branches by regex or string\n")
-		fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
-		fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi          Combined grep flags (ignore case, invert match)\n")
-		fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match\n")
-		fmt.Fprintf(os.Stderr, "  -<number>, -l <number>  Limit output rows (e.g. -10 or -l 5)\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
-		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq\n")
-		fmt.Fprintf(os.Stderr, "  docker inspect container | tq -g 'port'\n")
-		fmt.Fprintf(os.Stderr, "  kubectl get pod my-pod -o json | tq -g 'nginx'\n")
-		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google' -5\n")
+		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google' -g 'deepseek'\n")
+		fmt.Fprintf(os.Stderr, "  docker inspect container | tq -g 'nginx' -g 'running' --strict\n")
+		fmt.Fprintf(os.Stderr, "  kubectl get pod -o json | tq -g 'nginx' -g 'running'\n")
 		fmt.Fprintf(os.Stderr, "  tq -i data.json\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
@@ -287,18 +284,18 @@ func parseFlags() Config {
 	if formatFlag != "" {
 		cfg.Format = formatFlag
 	}
-	if grepFlag != "" {
-		cfg.Grep = grepFlag
-	}
 	if invertFlag {
 		cfg.InvertMatch = true
 	}
 	if ignoreCaseFlag {
 		cfg.IgnoreCase = true
 	}
+	if strictFlag {
+		cfg.Strict = true
+	}
 
 	if interactiveFlag {
-		if cfg.Grep != "" {
+		if len(cfg.Patterns) > 0 {
 			cfg.IgnoreCase = true
 		} else {
 			cfg.Interactive = true
