@@ -10,6 +10,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/tquery/tquery/pkg/engine"
+	"github.com/tquery/tquery/pkg/filter"
 	"github.com/tquery/tquery/pkg/parser"
 	"github.com/tquery/tquery/pkg/render"
 	"github.com/tquery/tquery/pkg/tui"
@@ -25,6 +26,8 @@ type Config struct {
 	NoColor     bool
 	ShowVersion bool
 	Limit       int
+	Grep        string
+	InvertMatch bool
 	Query       string
 	FilePath    string
 }
@@ -33,7 +36,7 @@ func Execute() {
 	cfg := parseFlags()
 
 	if cfg.ShowVersion {
-		fmt.Printf("tquery version %s\n", Version)
+		fmt.Printf("tq version %s\n", Version)
 		os.Exit(0)
 	}
 
@@ -84,6 +87,20 @@ func Execute() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Apply -g / --grep regex & literal filtering
+	if cfg.Grep != "" {
+		filteredDS, err := filter.Filter(ds, filter.Options{
+			Pattern:     cfg.Grep,
+			InvertMatch: cfg.InvertMatch,
+			IgnoreCase:  true,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Grep error: %v\n", err)
+			os.Exit(1)
+		}
+		ds = filteredDS
 	}
 
 	// Apply -<number> / --limit trimming
@@ -139,16 +156,23 @@ func parseFlags() Config {
 	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
 	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
 	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
+	fs.StringVar(&cfg.Grep, "g", "", "Filter rows matching regex or string pattern")
+	fs.StringVar(&cfg.Grep, "grep", "", "Filter rows matching regex or string pattern")
+	fs.BoolVar(&cfg.InvertMatch, "V", false, "Invert grep match (select non-matching rows)")
+	fs.BoolVar(&cfg.InvertMatch, "invert", false, "Invert grep match (select non-matching rows)")
+	fs.BoolVar(&cfg.InvertMatch, "invert-match", false, "Invert grep match (select non-matching rows)")
 	fs.BoolVar(&cfg.ShowVersion, "v", false, "Show version")
 	fs.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tq [options] [-<number>] [jq_query] [file]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: tq [options] [-<number>] [-g <pattern>] [jq_query] [file]\n\n")
 		fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq\n")
 		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -10\n")
-		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq '.data[] | {id, owned_by}'\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -g 'MiniMax|meta'\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -g 'owned_by:deepseek'\n")
+		fmt.Fprintf(os.Stderr, "  curl https://api.example.com/models | tq -g 'stopped' --invert\n")
 		fmt.Fprintf(os.Stderr, "  tq -5 -f markdown '.items' data.json\n")
 		fmt.Fprintf(os.Stderr, "  tq -i data.json\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")

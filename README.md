@@ -16,27 +16,28 @@
 
 ```text
 # Before: raw / jq pretty print
-$ curl -s https://inference.dahl.global/v1/models | jq
+$ curl -s https://integrate.api.nvidia.com/v1/models | jq
 {
   "data": [
     {
-      "id": "MiniMaxAI/MiniMax-M2.7",
+      "id": "01-ai/yi-large",
       "object": "model",
-      "created": 1677610602,
-      "owned_by": "gonka"
+      "created": 735790403,
+      "owned_by": "01-ai"
     },
     ...
   ]
 }
 
 # After: tq
-$ curl -s https://inference.dahl.global/v1/models | tq
-┼────────────┼────────────────────────┼────────┼──────────┼
-│ created    │ id                     │ object │ owned_by │
-┼────────────┼────────────────────────┼────────┼──────────┼
-│ 1677610602 │ MiniMaxAI/MiniMax-M2.7 │ model  │ gonka    │
-│ 1677610602 │ moonshotai/Kimi-K2.6   │ model  │ gonka    │
-┼────────────┼────────────────────────┼────────┼──────────┼
+$ curl -s https://integrate.api.nvidia.com/v1/models | tq -5
+┼───────────┼───────────────────────────────────┼────────┼──────────┼
+│ created   │ id                                │ object │ owned_by │
+┼───────────┼───────────────────────────────────┼────────┼──────────┼
+│ 735790403 │ 01-ai/yi-large                    │ model  │ 01-ai    │
+│ 735790403 │ adept/fuyu-8b                     │ model  │ adept    │
+│ 735790403 │ ai21labs/jamba-1.5-large-instruct │ model  │ ai21labs │
+┼───────────┼───────────────────────────────────┼────────┼──────────┼
 ```
 
 ---
@@ -45,6 +46,7 @@ $ curl -s https://inference.dahl.global/v1/models | tq
 
 - **Table formatter** — auto-detects arrays of objects and generates aligned, syntax-highlighted tables
 - **Auto-unwrapping** — automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
+- **Inbuilt high-speed grep (`-g`)** — regex & literal pattern search across columns with invert match (`-V / --invert`)
 - **Row limit flag (`-<number>`)** — quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
 - **Embedded jq engine** — native Go JQ query processing powered by `gojq`; no external `jq` binary required
 - **Interactive TUI mode** (`-i`) — live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
@@ -111,12 +113,22 @@ cp completions/tq.zsh "${fpath[1]}/_tq"
 
 **Pipe stdin directly**
 ```bash
-curl -s https://inference.dahl.global/v1/models | tq
+curl -s https://integrate.api.nvidia.com/v1/models | tq
+```
+
+**Filter with regex pattern**
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'deepseek|google'
+```
+
+**Invert match (exclude patterns)**
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'google' --invert
 ```
 
 **Limit output rows**
 ```bash
-curl -s https://inference.dahl.global/v1/models | tq -10
+curl -s https://integrate.api.nvidia.com/v1/models | tq -10
 ```
 
 **Query JSON with JQ filters**

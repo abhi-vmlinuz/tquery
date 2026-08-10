@@ -37,6 +37,32 @@ tq -5 '.data[]' data.json
 
 ---
 
+### `-g, --grep <pattern>`
+Filters rows matching a regex or literal string pattern across all columns, while keeping table headers and borders intact.
+
+- Supports column-scoped searching via `<column>:<pattern>` (e.g. `-g "status:Running"`).
+- Automatically utilizes linear-time RE2 regex and vectorized literal search.
+
+```bash
+# Regex search
+tq -g 'MiniMax|meta' data.json
+
+# Column-specific search
+tq -g 'owned_by:deepseek' data.json
+```
+
+---
+
+### `-V, --invert, --invert-match`
+Inverts the grep filter match (selects rows that do **not** match the pattern), similar to `grep -v`.
+
+```bash
+# Filter out stopped instances
+tq -g 'stopped' --invert data.json
+```
+
+---
+
 ### `-f, --format <format>`
 Specifies the output format for rendered data. Defaults to `table`.
 

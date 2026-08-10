@@ -13,7 +13,7 @@ You can enter interactive mode by passing the `-i` flag:
 tq -i payload.json
 
 # Pipe live API output directly into the interactive TUI
-curl -s https://inference.dahl.global/v1/models | tq -i
+curl -s https://integrate.api.nvidia.com/v1/models | tq -i
 ```
 
 ---

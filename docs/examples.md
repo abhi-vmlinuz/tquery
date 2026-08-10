@@ -8,17 +8,22 @@
 
 ### Query Available Models
 ```bash
-curl -s https://inference.dahl.global/v1/models | tq
+curl -s https://integrate.api.nvidia.com/v1/models | tq
 ```
 
 ### Limit to First 10 Models
 ```bash
-curl -s https://inference.dahl.global/v1/models | tq -10
+curl -s https://integrate.api.nvidia.com/v1/models | tq -10
+```
+
+### Search Specific Models with Regex
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'deepseek|llama|meta'
 ```
 
 ### Select Specific Model Fields
 ```bash
-curl -s https://inference.dahl.global/v1/models | \
+curl -s https://integrate.api.nvidia.com/v1/models | \
   tq '.data[] | {id, owned_by, created}'
 ```
 

@@ -22,6 +22,14 @@ It automatically unwraps top-level REST API wrappers (such as \fI{"data": [...]}
 Limit the maximum number of output rows displayed (e.g. \fBtq \-10\fR or \fBtq \-l 5\fR).
 
 .TP
+\fB\-g\fR, \fB\-\-grep\fR \fIPATTERN\fR
+Filter rows matching a regex or literal string pattern across all columns (or column-specific with \fIcolumn:pattern\fR).
+
+.TP
+\fB\-V\fR, \fB\-\-invert\fR, \fB\-\-invert\-match\fR
+Invert grep match (select rows that do not match the specified pattern).
+
+.TP
 \fB\-f\fR, \fB\-\-format\fR \fIFORMAT\fR
 Set output formatting mode. Supported formats:
 .RS
@@ -101,11 +109,15 @@ Exits the application.
 .SH EXAMPLES
 .TP
 \fBVisualize REST API response as a table:\fR
-$ curl \-s https://inference.dahl.global/v1/models | tq
+$ curl \-s https://integrate.api.nvidia.com/v1/models | tq
 
 .TP
-\fBDisplay first 10 rows with filter:\fR
-$ curl \-s https://inference.dahl.global/v1/models | tq \-10 '.data[] | {id, owned_by}'
+\fBFilter REST API response with regex search:\fR
+$ curl \-s https://integrate.api.nvidia.com/v1/models | tq \-g 'deepseek|google' \-10
+
+.TP
+\fBFilter REST API response with JQ query into table:\fR
+$ curl \-s https://integrate.api.nvidia.com/v1/models | tq '.data[] | {id, owned_by}'
 
 .TP
 \fBConvert JSON file to Markdown table:\fR
