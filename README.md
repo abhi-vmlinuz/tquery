@@ -42,6 +42,66 @@ $ curl -s https://integrate.api.nvidia.com/v1/models | tq -5
 
 ---
 
+## Showcase
+
+### 1. Tabular View & REST API Auto-Unwrapping
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq
+```
+<p align="center">
+  <img src="assets/01_table_view.png" alt="Table View Demo" width="850">
+</p>
+
+### 2. Inbuilt Grep with Visual Match Highlighting (`-g`)
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -g google
+```
+<p align="center">
+  <img src="assets/02_grep_table_highlight.png" alt="Grep Table Highlight" width="850">
+</p>
+
+### 3. Case-Insensitive Search (`-gi`)
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -gi DEEPSEEK
+```
+<p align="center">
+  <img src="assets/03_grep_case_insensitive.png" alt="Case Insensitive Grep" width="850">
+</p>
+
+### 4. Path-Pruning Tree Grep on Kubernetes Manifests
+```bash
+sudo kubectl get pod tq-demo -n nexus-challenges -o json | tq -g nginx
+```
+<p align="center">
+  <img src="assets/04_kubectl_tree_grep.png" alt="Kubectl Tree Grep" width="850">
+</p>
+
+### 5. Deep Path-Pruning on Docker Inspect Objects
+```bash
+docker inspect serene_cerf | tq -g port
+```
+<p align="center">
+  <img src="assets/05_docker_inspect_tree_grep.png" alt="Docker Inspect Tree Grep" width="850">
+</p>
+
+### 6. Kubernetes JQ Projection to Formatted Table
+```bash
+sudo kubectl get pods -A -o json | tq '.items[] | {name: .metadata.name, namespace: .metadata.namespace, status: .status.phase}'
+```
+<p align="center">
+  <img src="assets/06_kubectl_jq_table.png" alt="Kubectl JQ Table" width="850">
+</p>
+
+### 7. Multi-Pattern Search (`-g nginx -g running`)
+```bash
+sudo kubectl get pod tq-demo -n nexus-challenges -o json | tq -g nginx -g running
+```
+<p align="center">
+  <img src="assets/07_kubectl_multi_pattern_grep.png" alt="Multi-Pattern Search" width="850">
+</p>
+
+---
+
 ## Features
 
 - **Smart shape auto-detection** — automatically chooses table for flat datasets and tree for deeply nested objects (e.g. Docker, Kubernetes, Terraform)
