@@ -6,12 +6,15 @@ _tq_completions() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    opts="-f --format -i --interactive -n --no-headers --no-unwrap --no-color -l -L --limit -v --version -h --help"
-    formats="table markdown csv tsv tree json"
+    opts="-f --format --tree --table --json --raw --markdown --md --csv --tsv -g -e --grep --strict -gi -gv -gvi -v -V --invert --invert-match -I --ignore-case -i --interactive --ui -n --no-headers --no-unwrap --no-color -l -L --limit --version -h --help"
+    formats="auto table tree markdown csv tsv json"
 
     case "$prev" in
         -f|--format)
             COMPREPLY=( $(compgen -W "${formats}" -- "$cur") )
+            return 0
+            ;;
+        -g|-e|--grep|-gi|-gv|-gvi)
             return 0
             ;;
         -l|-L|--limit)

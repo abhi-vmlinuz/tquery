@@ -19,15 +19,27 @@ It automatically unwraps top-level REST API wrappers (such as \fI{"data": [...]}
 .SH OPTIONS
 .TP
 \fB\-<number>\fR, \fB\-l\fR, \fB\-\-limit\fR \fINUM\fR
-Limit the maximum number of output rows displayed (e.g. \fBtq \-10\fR or \fBtq \-l 5\fR).
+Limit the maximum number of output rows or tree lines displayed (e.g. \fBtq \-10\fR or \fBtq \-l 5\fR).
 
 .TP
-\fB\-g\fR, \fB\-\-grep\fR \fIPATTERN\fR
-Filter rows matching a regex or literal string pattern across all columns (or column-specific with \fIcolumn:pattern\fR).
+\fB\-g\fR, \fB\-e\fR, \fB\-\-grep\fR \fIPATTERN\fR
+Filter rows or tree branches matching a regex or literal string pattern (can be specified multiple times for union OR search).
 
 .TP
-\fB\-V\fR, \fB\-\-invert\fR, \fB\-\-invert\-match\fR
-Invert grep match (select rows that do not match the specified pattern).
+\fB\-\-strict\fR
+Strict multi-pattern matching (AND): requires all specified patterns to be present within each logical record or JSON object.
+
+.TP
+\fB\-gi\fR, \fB\-gv\fR, \fB\-gvi\fR
+Combined grep convenience flags (case-insensitivity, invert-match).
+
+.TP
+\fB\-v\fR, \fB\-V\fR, \fB\-\-invert\fR, \fB\-\-invert\-match\fR
+Invert grep match (select rows or branches that do not match the specified pattern).
+
+.TP
+\fB\-\-tree\fR, \fB\-\-table\fR, \fB\-\-json\fR, \fB\-\-markdown\fR, \fB\-\-csv\fR
+Direct shape shortcuts to force specific output formatting without \fB\-f\fR.
 
 .TP
 \fB\-f\fR, \fB\-\-format\fR \fIFORMAT\fR
