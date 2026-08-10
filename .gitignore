@@ -6,6 +6,10 @@ tquery
 sample.json
 *.log
 
+# Build & release artifacts
+dist/
+dev/
+
 # OS / IDE
 .DS_Store
 .vscode/
