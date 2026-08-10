@@ -188,7 +188,7 @@ func renderJSON(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error
 }
 
 func renderTree(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error {
-	treeStr := BuildTree(ds.Unwrapped, opts.UseColor)
+	treeStr := BuildTree(ds.Unwrapped, opts.UseColor, opts.HighlightPattern, opts.HighlightIgnoreCase)
 	_, err := io.WriteString(w, treeStr+"\n")
 	return err
 }

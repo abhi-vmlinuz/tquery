@@ -63,15 +63,26 @@ tq -g 'stopped' --invert data.json
 
 ---
 
-### `-f, --format <format>`
-Specifies the output format for rendered data. Defaults to `table`.
+### Direct Shape Shortcuts
 
-- **`table`**: Renders an ASCII/Unicode table with column borders and ANSI syntax highlighting.
-- **`markdown`**: Renders a GitHub-Flavored Markdown (GFM) pipe table.
-- **`csv`**: Standard comma-separated values format.
-- **`tsv`**: Tab-separated values format.
-- **`tree`**: Hierarchical indented tree structure visualizing nested keys, arrays, and primitive datatypes.
-- **`json`**: Pretty-printed formatted JSON.
+- **`--tree`**: Force hierarchical tree view.
+- **`--table`**: Force table view.
+- **`--json, --raw`**: Force JSON output.
+- **`--markdown, --md`**: Force markdown table output.
+- **`--csv, --tsv`**: Force CSV/TSV output.
+
+```bash
+# Force tree view on API response
+curl -s https://api.example.com/models | tq --tree
+
+# Force JSON output of pruned grep results
+docker inspect my-container | tq -g 'port' --json
+```
+
+---
+
+### `-f, --format <format>`
+Specifies the output format for rendered data (`auto`, `table`, `tree`, `markdown`, `csv`, `tsv`, `json`). Defaults to `auto` (auto-detects table for flat datasets and tree for deep objects).
 
 ```bash
 # Markdown table output

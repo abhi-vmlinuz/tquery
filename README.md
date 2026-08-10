@@ -44,13 +44,13 @@ $ curl -s https://integrate.api.nvidia.com/v1/models | tq -5
 
 ## Features
 
-- **Table formatter** — auto-detects arrays of objects and generates aligned, syntax-highlighted tables
+- **Smart shape auto-detection** — automatically chooses table for flat datasets and tree for deeply nested objects (e.g. Docker, Kubernetes, Terraform)
 - **Auto-unwrapping** — automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
-- **Inbuilt high-speed grep (`-g`)** — regex & literal pattern search across columns with invert match (`-V / --invert`)
-- **Row limit flag (`-<number>`)** — quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
+- **Path-pruning grep (`-g`)** — high-speed regex search across tables, and prunes hierarchical trees to only show the matching branch paths
+- **Row limit flag (`-<number>`, `-l`)** — quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
+- **Direct shape flags** — `--table`, `--tree`, `--json`, `--markdown`, `--csv`
 - **Embedded jq engine** — native Go JQ query processing powered by `gojq`; no external `jq` binary required
 - **Interactive TUI mode** (`-i`) — live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
-- **Multi-format export** — `table`, `markdown`, `csv`, `tsv`, `tree`, `json`
 - **Zero dependencies** — standalone, single static binary (`tq`, aliased to `tquery`)
 
 ---
@@ -119,6 +119,12 @@ curl -s https://integrate.api.nvidia.com/v1/models | tq
 **Filter with regex pattern**
 ```bash
 curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'deepseek|google'
+```
+
+**Path-pruning grep on complex DevOps objects (Docker / Kubernetes)**
+```bash
+docker inspect my-container | tq -g 'port'
+kubectl get pod my-pod -o json | tq -g 'nginx'
 ```
 
 **Invert match (exclude patterns)**

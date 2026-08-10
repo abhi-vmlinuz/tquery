@@ -6,29 +6,36 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tquery/tquery/pkg/filter"
 )
 
 var (
-	KeyStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")) // Cyan
-	BranchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // Grey
+	KeyStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")) // Cyan
+	BranchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))          // Grey
 )
 
-// BuildTree formats any JSON interface into a beautiful ASCII tree string.
-func BuildTree(val any, useColor bool) string {
+// BuildTree formats any JSON interface into a beautiful ASCII tree string with optional match highlighting.
+func BuildTree(val any, useColor bool, highlightPattern string, ignoreCase bool) string {
 	var sb strings.Builder
-	buildTreeInternal(&sb, "", "root", val, true, useColor)
+	buildTreeInternal(&sb, "", "root", val, true, useColor, highlightPattern, ignoreCase)
 	return sb.String()
 }
 
-func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, isLast bool, useColor bool) {
+func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, isLast bool, useColor bool, pattern string, ignoreCase bool) {
 	connector := "├── "
 	if isLast {
 		connector = "└── "
 	}
 
+	displayKey := key
 	if useColor {
 		sb.WriteString(indent + BranchStyle.Render(connector))
-		sb.WriteString(KeyStyle.Render(key))
+		if pattern != "" {
+			displayKey = filter.Highlight(key, pattern, ignoreCase)
+		} else {
+			displayKey = KeyStyle.Render(key)
+		}
+		sb.WriteString(displayKey)
 	} else {
 		sb.WriteString(indent + connector + key)
 	}
@@ -50,7 +57,7 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 		sort.Strings(keys)
 
 		for i, k := range keys {
-			buildTreeInternal(sb, nextIndent, k, v[k], i == len(keys)-1, useColor)
+			buildTreeInternal(sb, nextIndent, k, v[k], i == len(keys)-1, useColor, pattern, ignoreCase)
 		}
 
 	case []any:
@@ -68,13 +75,18 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 
 		for i, item := range v {
 			itemKey := fmt.Sprintf("[%d]", i)
-			buildTreeInternal(sb, nextIndent, itemKey, item, i == len(v)-1, useColor)
+			buildTreeInternal(sb, nextIndent, itemKey, item, i == len(v)-1, useColor, pattern, ignoreCase)
 		}
 
 	default:
 		formatted := fmt.Sprintf("%v", v)
 		if useColor {
-			sb.WriteString(": " + colorizeCell(formatted) + "\n")
+			if pattern != "" {
+				formatted = filter.Highlight(formatted, pattern, ignoreCase)
+			} else {
+				formatted = colorizeCell(formatted)
+			}
+			sb.WriteString(": " + formatted + "\n")
 		} else {
 			sb.WriteString(": " + formatted + "\n")
 		}

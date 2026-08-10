@@ -84,6 +84,33 @@ func Parse(data []byte, autoUnwrap bool) (*DataStructure, error) {
 	return ds, nil
 }
 
+// IsComplexStructure detects if JSON data is a single complex object better suited for Tree view.
+func IsComplexStructure(v any) bool {
+	switch val := v.(type) {
+	case map[string]any:
+		return len(val) > 4 || hasNestedContainers(val)
+	case []any:
+		if len(val) == 1 {
+			if m, ok := val[0].(map[string]any); ok {
+				return len(m) > 4 || hasNestedContainers(m)
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func hasNestedContainers(m map[string]any) bool {
+	for _, child := range m {
+		switch child.(type) {
+		case map[string]any, []any:
+			return true
+		}
+	}
+	return false
+}
+
 // UnwrapRoot intelligently unwraps wrapper objects like {"data": [...]}, {"items": [...]}, etc.
 func UnwrapRoot(v any) any {
 	m, ok := v.(map[string]any)
@@ -123,7 +150,6 @@ func mapsToTable(items []any) ([]string, [][]string) {
 		if !ok {
 			continue
 		}
-		// Sort keys within item for consistent ordering
 		itemKeys := make([]string, 0, len(m))
 		for k := range m {
 			itemKeys = append(itemKeys, k)
@@ -189,17 +215,28 @@ func formatValue(v any) string {
 	case bool:
 		return strconv.FormatBool(val)
 	case float64:
-		// Check if whole number
 		if val == float64(int64(val)) {
 			return strconv.FormatInt(int64(val), 10)
 		}
 		return strconv.FormatFloat(val, 'f', -1, 64)
-	case map[string]any, []any:
-		b, err := json.Marshal(val)
-		if err != nil {
-			return fmt.Sprintf("%v", val)
+	case map[string]any:
+		if len(val) == 0 {
+			return "{}"
 		}
-		return string(b)
+		b, err := json.Marshal(val)
+		if err == nil && len(b) <= 30 {
+			return string(b)
+		}
+		return fmt.Sprintf("[object: %d keys]", len(val))
+	case []any:
+		if len(val) == 0 {
+			return "[]"
+		}
+		b, err := json.Marshal(val)
+		if err == nil && len(b) <= 30 {
+			return string(b)
+		}
+		return fmt.Sprintf("[%d items]", len(val))
 	default:
 		rv := reflect.ValueOf(v)
 		if rv.Kind() == reflect.String {
@@ -213,4 +250,3 @@ func formatValue(v any) string {
 func MarshalAny(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
-
