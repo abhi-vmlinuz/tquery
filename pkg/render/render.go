@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/mattn/go-isatty"
+	"github.com/mattn/go-runewidth"
 	"github.com/tquery/tquery/pkg/filter"
 	"github.com/tquery/tquery/pkg/parser"
+	"golang.org/x/term"
 )
 
 type Format string
@@ -80,6 +84,36 @@ func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) erro
 		return err
 	}
 
+	numCols := len(ds.Headers)
+	if numCols == 0 && len(ds.Rows) > 0 {
+		numCols = len(ds.Rows[0])
+	}
+
+	rows := ds.Rows
+	if opts.Limit > 0 && len(rows) > opts.Limit {
+		rows = rows[:opts.Limit]
+	}
+
+	// 1. Calculate natural content width for each column
+	naturalWidths := make([]int, numCols)
+	for j := 0; j < numCols; j++ {
+		if j < len(ds.Headers) {
+			naturalWidths[j] = lipgloss.Width(ds.Headers[j])
+		}
+		for _, row := range rows {
+			if j < len(row) {
+				w := lipgloss.Width(row[j])
+				if w > naturalWidths[j] {
+					naturalWidths[j] = w
+				}
+			}
+		}
+	}
+
+	// 2. Terminal-aware adaptive width allocation
+	termWidth := getTerminalWidth()
+	colWidths := allocateColumnWidths(naturalWidths, ds.Headers, termWidth)
+
 	t := table.New().
 		Border(lipgloss.NormalBorder()).
 		BorderStyle(lipgloss.NewStyle().Foreground(BorderColor)).
@@ -93,31 +127,40 @@ func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) erro
 	if opts.ShowHeader && len(ds.Headers) > 0 {
 		headers := make([]string, len(ds.Headers))
 		for i, h := range ds.Headers {
+			headerText := h
+			if i < len(colWidths) && colWidths[i] > 0 && lipgloss.Width(h) > colWidths[i] {
+				headerText = truncateString(h, colWidths[i])
+			}
 			if opts.UseColor {
-				headers[i] = HeaderStyle.Render(h)
+				headers[i] = HeaderStyle.Render(headerText)
 			} else {
-				headers[i] = h
+				headers[i] = headerText
 			}
 		}
 		t.Headers(headers...)
 	}
 
-	rows := ds.Rows
-	if opts.Limit > 0 && len(rows) > opts.Limit {
-		rows = rows[:opts.Limit]
-	}
-
 	for _, row := range rows {
 		styledRow := make([]string, len(row))
 		for i, cell := range row {
+			maxW := 0
+			if i < len(colWidths) {
+				maxW = colWidths[i]
+			}
+
+			truncated := cell
+			if maxW > 0 && lipgloss.Width(cell) > maxW {
+				truncated = truncateCellWithMatch(cell, maxW, opts.HighlightPatterns, opts.HighlightIgnoreCase)
+			}
+
 			if opts.UseColor {
 				if len(opts.HighlightPatterns) > 0 {
-					styledRow[i] = filter.HighlightMulti(cell, opts.HighlightPatterns, opts.HighlightIgnoreCase)
+					styledRow[i] = filter.HighlightMulti(truncated, opts.HighlightPatterns, opts.HighlightIgnoreCase)
 				} else {
-					styledRow[i] = colorizeCell(cell)
+					styledRow[i] = colorizeCell(truncated)
 				}
 			} else {
-				styledRow[i] = cell
+				styledRow[i] = truncated
 			}
 		}
 		t.Row(styledRow...)
@@ -125,6 +168,151 @@ func renderTable(w io.Writer, ds *parser.DataStructure, opts RenderOptions) erro
 
 	_, err := fmt.Fprintln(w, t.String())
 	return err
+}
+
+func getTerminalWidth() int {
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		w, _, err := term.GetSize(int(os.Stdout.Fd()))
+		if err == nil && w > 20 {
+			return w
+		}
+	}
+	return 0
+}
+
+func allocateColumnWidths(naturalWidths []int, headers []string, termWidth int) []int {
+	numCols := len(naturalWidths)
+	if numCols == 0 {
+		return nil
+	}
+
+	// If unconstrained (piped or non-TTY), use natural widths
+	if termWidth <= 0 {
+		return naturalWidths
+	}
+
+	// Table overhead: 1 left border, 1 right border, (numCols - 1) separators, 2 spaces padding per col
+	overhead := (numCols * 3) + 1
+	totalNatural := overhead
+	for _, w := range naturalWidths {
+		totalNatural += w
+	}
+
+	// Fits comfortably without any truncation
+	if totalNatural <= termWidth {
+		return naturalWidths
+	}
+
+	availableBudget := termWidth - overhead
+	if availableBudget <= 0 {
+		return naturalWidths
+	}
+
+	minWidths := make([]int, numCols)
+	totalMin := 0
+	for j := 0; j < numCols; j++ {
+		hLen := 4
+		if j < len(headers) {
+			hLen = lipgloss.Width(headers[j])
+		}
+		if hLen > 12 {
+			minWidths[j] = 10
+		} else if hLen < 4 {
+			minWidths[j] = 4
+		} else {
+			minWidths[j] = hLen
+		}
+		totalMin += minWidths[j]
+	}
+
+	// In extremely tight layouts, enforce minimum readable floor
+	if totalMin >= availableBudget {
+		return minWidths
+	}
+
+	// Distribute remaining flexible budget proportionally
+	remainingBudget := availableBudget - totalMin
+	flexibleDemand := 0
+	for j := 0; j < numCols; j++ {
+		if naturalWidths[j] > minWidths[j] {
+			flexibleDemand += (naturalWidths[j] - minWidths[j])
+		}
+	}
+
+	allocated := make([]int, numCols)
+	for j := 0; j < numCols; j++ {
+		if flexibleDemand == 0 || naturalWidths[j] <= minWidths[j] {
+			allocated[j] = minWidths[j]
+		} else {
+			extra := int(float64(remainingBudget) * float64(naturalWidths[j]-minWidths[j]) / float64(flexibleDemand))
+			allocated[j] = minWidths[j] + extra
+		}
+	}
+
+	return allocated
+}
+
+func truncateString(s string, maxWidth int) string {
+	if maxWidth <= 1 {
+		return "…"
+	}
+	targetWidth := maxWidth - 1
+	var sb strings.Builder
+	currentWidth := 0
+
+	for _, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if currentWidth+rw > targetWidth {
+			break
+		}
+		sb.WriteRune(r)
+		currentWidth += rw
+	}
+	sb.WriteString("…")
+	return sb.String()
+}
+
+func truncateCellWithMatch(s string, maxWidth int, patterns []string, ignoreCase bool) string {
+	if maxWidth <= 1 {
+		return "…"
+	}
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+
+	// Check if any search pattern matches inside this cell
+	matchIdx := -1
+	for _, p := range patterns {
+		if colonIdx := strings.Index(p, ":"); colonIdx > 0 {
+			p = p[colonIdx+1:]
+		}
+		if p == "" {
+			continue
+		}
+		if ignoreCase {
+			idx := strings.Index(strings.ToLower(s), strings.ToLower(p))
+			if idx >= 0 && (matchIdx == -1 || idx < matchIdx) {
+				matchIdx = idx
+			}
+		} else {
+			idx := strings.Index(s, p)
+			if idx >= 0 && (matchIdx == -1 || idx < matchIdx) {
+				matchIdx = idx
+			}
+		}
+	}
+
+	// If match starts further into the string, shift visible window to keep match visible
+	if matchIdx > maxWidth-5 {
+		start := matchIdx - 3
+		if start < 0 {
+			start = 0
+		}
+		window := s[start:]
+		return "…" + truncateString(window, maxWidth-1)
+	}
+
+	return truncateString(s, maxWidth)
 }
 
 func colorizeCell(val string) string {
