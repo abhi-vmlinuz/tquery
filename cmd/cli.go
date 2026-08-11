@@ -16,7 +16,7 @@ import (
 	"github.com/tquery/tquery/pkg/tui"
 )
 
-const Version = "0.1.2"
+const Version = "0.1.3"
 
 type Config struct {
 	Format      string
@@ -64,10 +64,15 @@ func Execute() {
 		return
 	}
 
-	// 1. Evaluate JQ Query if provided
+	// 1. Parse JSON / NDJSON input stream
 	var targetData any
+	rawObj, err := parser.DecodeStream(rawJSON)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
 	if cfg.Query != "" && cfg.Query != "." {
-		rawObj := parseRawInterface(rawJSON)
 		res, err := engine.Evaluate(cfg.Query, rawObj)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "JQ evaluation error: %v\n", err)
@@ -75,7 +80,7 @@ func Execute() {
 		}
 		targetData = res
 	} else {
-		targetData = parseRawInterface(rawJSON)
+		targetData = rawObj
 		if !cfg.NoUnwrap {
 			targetData = parser.UnwrapRoot(targetData)
 		}

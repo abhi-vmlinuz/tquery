@@ -2,6 +2,7 @@ package parser
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -79,5 +80,57 @@ func TestParseKeyValueObject(t *testing.T) {
 
 	if len(ds.Rows) != 3 {
 		t.Errorf("Expected 3 rows, got %d", len(ds.Rows))
+	}
+}
+
+func TestParseJSONL(t *testing.T) {
+	jsonlInput := []byte("{\"ID\":\"abc\",\"Image\":\"nginx\",\"Status\":\"running\"}\n{\"ID\":\"def\",\"Image\":\"redis\",\"Status\":\"running\"}\n")
+
+	ds, err := Parse(jsonlInput, true)
+	if err != nil {
+		t.Fatalf("Parse error on JSONL: %v", err)
+	}
+
+	if ds.Type != KindTable {
+		t.Errorf("Expected KindTable for NDJSON stream of maps, got %s", ds.Type)
+	}
+
+	if len(ds.Rows) != 2 {
+		t.Fatalf("Expected 2 rows from NDJSON stream, got %d", len(ds.Rows))
+	}
+
+	expectedHeaders := []string{"ID", "Image", "Status"}
+	if !reflect.DeepEqual(ds.Headers, expectedHeaders) {
+		t.Errorf("Headers mismatch. Got %v, expected %v", ds.Headers, expectedHeaders)
+	}
+}
+
+func TestParseConcatenatedJSON(t *testing.T) {
+	concatInput := []byte(`{"a": 1} {"a": 2} {"a": 3}`)
+
+	ds, err := Parse(concatInput, true)
+	if err != nil {
+		t.Fatalf("Parse error on concatenated JSON: %v", err)
+	}
+
+	if ds.Type != KindTable {
+		t.Errorf("Expected KindTable, got %s", ds.Type)
+	}
+
+	if len(ds.Rows) != 3 {
+		t.Errorf("Expected 3 rows from concatenated JSON, got %d", len(ds.Rows))
+	}
+}
+
+func TestParseInvalidJSONStream(t *testing.T) {
+	invalidInput := []byte("{\"foo\":\"bar\"}\nNOT_VALID_JSON\n{\"foo\":\"baz\"}")
+
+	_, err := Parse(invalidInput, true)
+	if err == nil {
+		t.Fatalf("Expected error for invalid JSON stream, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "invalid json stream") {
+		t.Errorf("Expected error to mention 'invalid json stream', got: %v", err)
 	}
 }

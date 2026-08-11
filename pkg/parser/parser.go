@@ -1,8 +1,10 @@
 package parser
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 	"sort"
 	"strconv"
@@ -26,11 +28,40 @@ const (
 	KindValue    Kind = "primitive"
 )
 
-// Parse parses raw JSON input into a DataStructure.
+// DecodeStream decodes single JSON documents, JSON arrays, and multi-document streams (JSONL / NDJSON).
+func DecodeStream(data []byte) (any, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	var docs []any
+
+	for {
+		var doc any
+		err := dec.Decode(&doc)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("invalid json stream: %w", err)
+		}
+		docs = append(docs, doc)
+	}
+
+	if len(docs) == 0 {
+		return nil, fmt.Errorf("empty json input")
+	}
+
+	if len(docs) == 1 {
+		return docs[0], nil
+	}
+
+	// Multiple JSON documents: normalize into a unified slice of records
+	return docs, nil
+}
+
+// Parse parses raw JSON input (single object, array, or NDJSON stream) into a DataStructure.
 func Parse(data []byte, autoUnwrap bool) (*DataStructure, error) {
-	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("invalid json input: %w", err)
+	raw, err := DecodeStream(data)
+	if err != nil {
+		return nil, err
 	}
 
 	target := raw
