@@ -350,7 +350,11 @@ func renderMarkdown(w io.Writer, ds *parser.DataStructure, opts RenderOptions) e
 	for _, row := range rows {
 		escapedRow := make([]string, len(row))
 		for i, cell := range row {
-			escapedRow[i] = strings.ReplaceAll(cell, "|", "\\|")
+			cellContent := cell
+			if opts.UseColor && len(opts.HighlightPatterns) > 0 {
+				cellContent = filter.HighlightMulti(cellContent, opts.HighlightPatterns, opts.HighlightIgnoreCase)
+			}
+			escapedRow[i] = strings.ReplaceAll(cellContent, "|", "\\|")
 		}
 		sb.WriteString("| " + strings.Join(escapedRow, " | ") + " |\n")
 	}
@@ -397,7 +401,13 @@ func renderJSON(w io.Writer, ds *parser.DataStructure, opts RenderOptions) error
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(w, string(b))
+
+	outStr := string(b)
+	if opts.UseColor && len(opts.HighlightPatterns) > 0 {
+		outStr = filter.HighlightMulti(outStr, opts.HighlightPatterns, opts.HighlightIgnoreCase)
+	}
+
+	_, err = fmt.Fprintln(w, outStr)
 	return err
 }
 
