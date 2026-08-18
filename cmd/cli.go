@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/tquery/tquery/pkg/engine"
 	"github.com/tquery/tquery/pkg/filter"
+	"github.com/tquery/tquery/pkg/pager"
 	"github.com/tquery/tquery/pkg/parser"
 	"github.com/tquery/tquery/pkg/render"
 	"github.com/tquery/tquery/pkg/tui"
@@ -24,6 +26,7 @@ type Config struct {
 	NoHeaders   bool
 	NoUnwrap    bool
 	NoColor     bool
+	NoPager     bool
 	ShowVersion bool
 	Limit       int
 	Patterns    []string
@@ -149,8 +152,14 @@ func Execute() {
 		HighlightIgnoreCase: cfg.IgnoreCase,
 	}
 
-	if err := render.Render(os.Stdout, ds, opts); err != nil {
+	var buf bytes.Buffer
+	if err := render.Render(&buf, ds, opts); err != nil {
 		fmt.Fprintf(os.Stderr, "Render error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := pager.WriteOrPage(os.Stdout, buf.String(), cfg.NoPager); err != nil {
+		fmt.Fprintf(os.Stderr, "Output error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -189,6 +198,12 @@ func parseFlags() Config {
 			continue
 		case "--strict":
 			cfg.Strict = true
+			continue
+		case "--no-pager":
+			cfg.NoPager = true
+			continue
+		case "--pager":
+			cfg.NoPager = false
 			continue
 		}
 
@@ -248,6 +263,7 @@ func parseFlags() Config {
 	fs.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
 	fs.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
 	fs.BoolVar(&cfg.NoColor, "no-color", false, "Disable ANSI color formatting")
+	fs.BoolVar(&cfg.NoPager, "no-pager", false, "Disable automatic terminal pager (less -RFX)")
 	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
 	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
 	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")

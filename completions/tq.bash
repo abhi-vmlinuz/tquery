@@ -6,7 +6,7 @@ _tq_completions() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    opts="-f --format --tree --table --json --raw --markdown --md --csv --tsv -g -e --grep --strict -gi -gv -gvi -v -V --invert --invert-match -I --ignore-case -i --interactive --ui -n --no-headers --no-unwrap --no-color -l -L --limit --version -h --help"
+    opts="-f --format --tree --table --json --raw --markdown --md --csv --tsv -g -e --grep --strict -gi -gv -gvi -v -V --invert --invert-match -I --ignore-case -i --interactive --ui -n --no-headers --no-unwrap --no-color --no-pager --pager -l -L --limit --version -h --help"
     formats="auto table tree markdown csv tsv json"
 
     case "$prev" in

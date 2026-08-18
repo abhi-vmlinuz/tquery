@@ -29,6 +29,7 @@ _tq() {
         '(-n --no-headers)'{-n,--no-headers}'[Hide headers in table and CSV formats]' \
         '--no-unwrap[Disable automatic root array un-wrapping]' \
         '--no-color[Disable ANSI color formatting]' \
+        '(--no-pager --pager)'{--no-pager,--pager}'[Disable or force automatic terminal pager]' \
         '--version[Print software version]' \
         '(-h --help)'{-h,--help}'[Display usage help]' \
         '1:JQ Query or JSON file:_files -g "*.json"' \

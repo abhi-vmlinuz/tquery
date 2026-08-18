@@ -32,6 +32,8 @@ for cmd in tq tquery
     complete -c $cmd -s n -l no-headers -d "Hide headers in table and CSV formats"
     complete -c $cmd -l no-unwrap -d "Disable automatic root array un-wrapping"
     complete -c $cmd -l no-color -d "Disable ANSI color formatting"
+    complete -c $cmd -l no-pager -d "Disable automatic terminal pager (less -RFX)"
+    complete -c $cmd -l pager -d "Force automatic terminal pager"
     complete -c $cmd -l version -d "Show version"
     complete -c $cmd -s h -l help -d "Show usage help"
 
