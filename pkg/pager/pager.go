@@ -38,7 +38,7 @@ func ShouldPage(lineCount int, noPager bool) bool {
 	return lineCount > (height - 1)
 }
 
-// PageOutput pipes the given content to a terminal pager (less -RF or $PAGER).
+// PageOutput pipes the given content to a terminal pager (less -R or $PAGER).
 // Falls back to direct stdout printing if pager is unavailable.
 func PageOutput(content string) error {
 	pagerCmd := getPagerCommand()
@@ -75,16 +75,16 @@ func getPagerCommand() string {
 		return p
 	}
 	if p := os.Getenv("PAGER"); p != "" {
-		// If user set PAGER to 'less', ensure -RF flags are applied
+		// If user set PAGER to 'less', ensure -R flag is applied for ANSI colors and alternate screen window
 		if p == "less" {
-			return "less -RF"
+			return "less -R"
 		}
 		return p
 	}
 
-	// Default pager
+	// Default pager: less -R (opens alternate screen window, closes on q)
 	if _, err := exec.LookPath("less"); err == nil {
-		return "less -RF"
+		return "less -R"
 	}
 
 	return ""
