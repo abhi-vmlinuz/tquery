@@ -38,8 +38,8 @@ Combined grep convenience flags (case-insensitivity, invert-match).
 Invert grep match (select rows or branches that do not match the specified pattern).
 
 .TP
-\fB\-\-tree\fR, \fB\-\-table\fR, \fB\-\-json\fR, \fB\-\-markdown\fR, \fB\-\-csv\fR
-Direct shape shortcuts to force specific output formatting without \fB\-f\fR.
+\fB\-\-tree\fR, \fB\-\-table\fR, \fB\-\-json\fR, \fB\-\-raw\fR, \fB\-\-markdown\fR, \fB\-\-md\fR, \fB\-\-csv\fR, \fB\-\-tsv\fR
+Direct shape shortcuts to force specific output formatting without \fB\-f\fR (e.g. \fB\-\-raw\fR or \fB\-\-json\fR for formatted JSON output with search match highlights).
 
 .TP
 \fB\-f\fR, \fB\-\-format\fR \fIFORMAT\fR
@@ -56,7 +56,7 @@ Tab-separated values data stream.
 .IP \fBtree\fR 4
 Indented ASCII tree structure displaying nested keys and types.
 .IP \fBjson\fR 4
-Pretty-printed JSON object output.
+Pretty-printed raw JSON object output (aliased by \fB\-\-raw\fR).
 .RE
 
 .TP
