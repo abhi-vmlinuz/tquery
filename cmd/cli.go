@@ -55,8 +55,8 @@ func Execute() {
 	isTTYStdout := isatty.IsTerminal(os.Stdout.Fd())
 
 	runInteractive := cfg.Interactive
-	if !cfg.Interactive && isTTYStdin && isTTYStdout && cfg.FilePath == "" {
-		// Default CLI behavior
+	if !cfg.Interactive && isTTYStdin && isTTYStdout && cfg.FilePath == "" && len(cfg.Patterns) == 0 {
+		// Default CLI behavior when launched interactively with no args
 	}
 
 	if runInteractive {
@@ -205,10 +205,13 @@ func parseFlags() Config {
 		case "--pager":
 			cfg.NoPager = false
 			continue
+		case "-u", "--ui", "--interactive":
+			cfg.Interactive = true
+			continue
 		}
 
 		// 2. Detect -<number> (e.g. -10, -5)
-		if strings.HasPrefix(arg, "-") && len(arg) > 1 {
+		if strings.HasPrefix(arg, "-") && len(arg) > 1 && !strings.HasPrefix(arg, "--") {
 			if num, err := strconv.Atoi(arg[1:]); err == nil && num > 0 {
 				numericLimit = num
 				continue
@@ -224,13 +227,13 @@ func parseFlags() Config {
 			}
 		}
 
-		// 4. Detect combined grep flags like -gi, -gv, -gvi, -giv
+		// 4. Detect combined -g flags like -gi, -gv, -gvi, -giv, -gI, -gV
 		if strings.HasPrefix(arg, "-g") && len(arg) > 2 {
 			subFlags := arg[2:]
-			if strings.Contains(subFlags, "i") {
+			if strings.ContainsAny(subFlags, "iI") {
 				cfg.IgnoreCase = true
 			}
-			if strings.Contains(subFlags, "v") {
+			if strings.ContainsAny(subFlags, "vV") {
 				cfg.InvertMatch = true
 			}
 
@@ -240,6 +243,30 @@ func parseFlags() Config {
 				continue
 			}
 			continue
+		}
+
+		// 5. Detect POSIX combined flags like -iv, -vi, -i, -v, -u, -I, -V
+		if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && len(arg) > 1 {
+			flags := arg[1:]
+			isFlagCluster := true
+			for _, r := range flags {
+				if !strings.ContainsRune("iIvVuU", r) {
+					isFlagCluster = false
+					break
+				}
+			}
+			if isFlagCluster {
+				if strings.ContainsAny(flags, "iI") {
+					cfg.IgnoreCase = true
+				}
+				if strings.ContainsAny(flags, "vV") {
+					cfg.InvertMatch = true
+				}
+				if strings.ContainsAny(flags, "uU") {
+					cfg.Interactive = true
+				}
+				continue
+			}
 		}
 
 		filteredArgs = append(filteredArgs, arg)
@@ -256,9 +283,9 @@ func parseFlags() Config {
 
 	fs.StringVar(&formatFlag, "f", "", "Output format: table, tree, markdown, csv, tsv, json")
 	fs.StringVar(&formatFlag, "format", "", "Output format: table, tree, markdown, csv, tsv, json")
-	fs.BoolVar(&interactiveFlag, "i", false, "Launch interactive TUI mode (or ignore-case when using -g)")
-	fs.BoolVar(&interactiveFlag, "interactive", false, "Launch interactive TUI mode")
+	fs.BoolVar(&interactiveFlag, "u", false, "Launch interactive TUI mode")
 	fs.BoolVar(&interactiveFlag, "ui", false, "Launch interactive TUI mode")
+	fs.BoolVar(&interactiveFlag, "interactive", false, "Launch interactive TUI mode")
 	fs.BoolVar(&cfg.NoHeaders, "n", false, "Hide headers")
 	fs.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
 	fs.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
@@ -271,6 +298,7 @@ func parseFlags() Config {
 	fs.BoolVar(&invertFlag, "V", false, "Invert match (select non-matching rows)")
 	fs.BoolVar(&invertFlag, "invert", false, "Invert match (select non-matching rows)")
 	fs.BoolVar(&invertFlag, "invert-match", false, "Invert match (select non-matching rows)")
+	fs.BoolVar(&ignoreCaseFlag, "i", false, "Case-insensitive grep match")
 	fs.BoolVar(&ignoreCaseFlag, "I", false, "Case-insensitive grep match")
 	fs.BoolVar(&ignoreCaseFlag, "ignore-case", false, "Case-insensitive grep match")
 	fs.BoolVar(&strictFlag, "strict", false, "Strict matching: require all supplied patterns to match (AND)")
@@ -283,8 +311,9 @@ func parseFlags() Config {
 		fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter by pattern (can be specified multiple times for OR)\n")
 		fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
 		fmt.Fprintf(os.Stderr, "  --strict                Strict matching: require all supplied patterns to match (AND)\n")
-		fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi          Combined grep flags (ignore case, invert match)\n")
-		fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match\n\n")
+		fmt.Fprintf(os.Stderr, "  -i, -I, --ignore-case   Case-insensitive search\n")
+		fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match\n")
+		fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi, -giv    Combined grep flags\n\n")
 		fmt.Fprintf(os.Stderr, "Shape Shortcuts:\n")
 		fmt.Fprintf(os.Stderr, "  --tree                  Force hierarchical tree view\n")
 		fmt.Fprintf(os.Stderr, "  --table                 Force tabular view\n")
@@ -294,8 +323,7 @@ func parseFlags() Config {
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google' -g 'deepseek'\n")
 		fmt.Fprintf(os.Stderr, "  docker inspect container | tq -g 'nginx' -g 'running' --strict\n")
-		fmt.Fprintf(os.Stderr, "  kubectl get pod -o json | tq -g 'nginx' -g 'running'\n")
-		fmt.Fprintf(os.Stderr, "  tq -i data.json\n\n")
+		fmt.Fprintf(os.Stderr, "  tq -u data.json\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
 	}
@@ -316,10 +344,10 @@ func parseFlags() Config {
 	}
 
 	if interactiveFlag {
-		if len(cfg.Patterns) > 0 {
-			cfg.IgnoreCase = true
-		} else {
+		if len(cfg.Patterns) == 0 {
 			cfg.Interactive = true
+		} else {
+			cfg.IgnoreCase = true
 		}
 	}
 
