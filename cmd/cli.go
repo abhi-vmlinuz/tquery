@@ -173,6 +173,7 @@ func parseFlags() Config {
 	rawArgs := os.Args[1:]
 	var filteredArgs []string
 
+	// Pre-pass: scan all raw arguments for flags and position-independent options
 	for i := 0; i < len(rawArgs); i++ {
 		arg := rawArgs[i]
 
@@ -280,17 +281,21 @@ func parseFlags() Config {
 	var interactiveFlag bool
 	var formatFlag string
 	var strictFlag bool
+	var noPagerFlag bool
+	var noHeadersFlag bool
+	var noUnwrapFlag bool
+	var noColorFlag bool
 
 	fs.StringVar(&formatFlag, "f", "", "Output format: table, tree, markdown, csv, tsv, json")
 	fs.StringVar(&formatFlag, "format", "", "Output format: table, tree, markdown, csv, tsv, json")
 	fs.BoolVar(&interactiveFlag, "u", false, "Launch interactive TUI mode")
 	fs.BoolVar(&interactiveFlag, "ui", false, "Launch interactive TUI mode")
 	fs.BoolVar(&interactiveFlag, "interactive", false, "Launch interactive TUI mode")
-	fs.BoolVar(&cfg.NoHeaders, "n", false, "Hide headers")
-	fs.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
-	fs.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
-	fs.BoolVar(&cfg.NoColor, "no-color", false, "Disable ANSI color formatting")
-	fs.BoolVar(&cfg.NoPager, "no-pager", false, "Disable automatic terminal pager (less -R)")
+	fs.BoolVar(&noHeadersFlag, "n", false, "Hide headers")
+	fs.BoolVar(&noHeadersFlag, "no-headers", false, "Hide headers")
+	fs.BoolVar(&noUnwrapFlag, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
+	fs.BoolVar(&noColorFlag, "no-color", false, "Disable ANSI color formatting")
+	fs.BoolVar(&noPagerFlag, "no-pager", false, "Disable automatic terminal pager (less -R)")
 	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
 	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
 	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
@@ -341,6 +346,18 @@ func parseFlags() Config {
 	}
 	if strictFlag {
 		cfg.Strict = true
+	}
+	if noPagerFlag {
+		cfg.NoPager = true
+	}
+	if noHeadersFlag {
+		cfg.NoHeaders = true
+	}
+	if noUnwrapFlag {
+		cfg.NoUnwrap = true
+	}
+	if noColorFlag {
+		cfg.NoColor = true
 	}
 
 	if interactiveFlag {
