@@ -263,7 +263,7 @@ func parseFlags() Config {
 	fs.BoolVar(&cfg.NoHeaders, "no-headers", false, "Hide headers")
 	fs.BoolVar(&cfg.NoUnwrap, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
 	fs.BoolVar(&cfg.NoColor, "no-color", false, "Disable ANSI color formatting")
-	fs.BoolVar(&cfg.NoPager, "no-pager", false, "Disable automatic terminal pager (less -RFX)")
+	fs.BoolVar(&cfg.NoPager, "no-pager", false, "Disable automatic terminal pager (less -RF)")
 	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
 	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
 	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
