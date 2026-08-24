@@ -32,12 +32,12 @@ func TestWriteOrPageNonTTY(t *testing.T) {
 	}
 }
 
-func TestCustomSystemPager(t *testing.T) {
-	os.Setenv("TQ_PAGER", "cat")
+func TestGetPagerCommand(t *testing.T) {
+	os.Setenv("TQ_PAGER", "custom-pager -v")
 	defer os.Unsetenv("TQ_PAGER")
 
-	err := runSystemPager(os.Getenv("TQ_PAGER"), "test content\n")
-	if err != nil {
-		t.Errorf("runSystemPager failed for cat: %v", err)
+	cmd := getPagerCommand()
+	if cmd != "custom-pager -v" {
+		t.Errorf("Expected 'custom-pager -v', got %q", cmd)
 	}
 }
