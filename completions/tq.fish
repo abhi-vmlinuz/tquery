@@ -22,13 +22,13 @@ for cmd in tq tquery
     complete -c $cmd -l gv -d "Grep with invert-match" -r
     complete -c $cmd -l gvi -d "Grep with invert-match and case-insensitivity" -r
     complete -c $cmd -s v -s V -l invert -l invert-match -d "Invert grep match"
-    complete -c $cmd -s I -l ignore-case -d "Case-insensitive grep match"
+    complete -c $cmd -s i -s I -l ignore-case -d "Case-insensitive search match"
 
     # Limit options
     complete -c $cmd -s l -s L -l limit -d "Limit number of output rows/lines" -r
 
     # General flags
-    complete -c $cmd -s i -l interactive -l ui -d "Launch interactive TUI mode"
+    complete -c $cmd -s u -l ui -l interactive -d "Launch interactive TUI mode"
     complete -c $cmd -s n -l no-headers -d "Hide headers in table and CSV formats"
     complete -c $cmd -l no-unwrap -d "Disable automatic root array un-wrapping"
     complete -c $cmd -l no-color -d "Disable ANSI color formatting"

@@ -23,9 +23,9 @@ _tq() {
         '*'{-g,-e,--grep}'[Filter by regex or string pattern]:pattern:' \
         '--strict[Strict multi-pattern matching (AND)]' \
         '(-v -V --invert --invert-match)'{-v,-V,--invert,--invert-match}'[Invert grep match]' \
-        '(-I --ignore-case)'{-I,--ignore-case}'[Case-insensitive grep match]' \
+        '(-i -I --ignore-case)'{-i,-I,--ignore-case}'[Case-insensitive search match]' \
         '(-l -L --limit)'{-l,-L,--limit}'[Limit number of output rows/lines]:number:' \
-        '(-i --interactive --ui)'{-i,--interactive,--ui}'[Launch interactive TUI mode]' \
+        '(-u --ui --interactive)'{-u,--ui,--interactive}'[Launch interactive TUI mode]' \
         '(-n --no-headers)'{-n,--no-headers}'[Hide headers in table and CSV formats]' \
         '--no-unwrap[Disable automatic root array un-wrapping]' \
         '--no-color[Disable ANSI color formatting]' \

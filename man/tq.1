@@ -30,12 +30,16 @@ Filter rows or tree branches matching a regex or literal string pattern (can be 
 Strict multi-pattern matching (AND): requires all specified patterns to be present within each logical record or JSON object.
 
 .TP
-\fB\-gi\fR, \fB\-gv\fR, \fB\-gvi\fR
-Combined grep convenience flags (case-insensitivity, invert-match).
+\fB\-i\fR, \fB\-I\fR, \fB\-\-ignore-case\fR
+Case-insensitive search matching (matches \fBgrep \-i\fR).
 
 .TP
 \fB\-v\fR, \fB\-V\fR, \fB\-\-invert\fR, \fB\-\-invert\-match\fR
 Invert grep match (select rows or branches that do not match the specified pattern).
+
+.TP
+\fB\-gi\fR, \fB\-gv\fR, \fB\-gvi\fR, \fB\-giv\fR, \fB\-iv\fR, \fB\-vi\fR
+Combined POSIX grep flags in any order (e.g. \fBtq \-g meta \-iv\fR or \fBtq \-gvi meta\fR).
 
 .TP
 \fB\-\-tree\fR, \fB\-\-table\fR, \fB\-\-json\fR, \fB\-\-raw\fR, \fB\-\-markdown\fR, \fB\-\-md\fR, \fB\-\-csv\fR, \fB\-\-tsv\fR
@@ -60,8 +64,8 @@ Pretty-printed raw JSON object output (aliased by \fB\-\-raw\fR).
 .RE
 
 .TP
-\fB\-i\fR, \fB\-\-interactive\fR
-Launch interactive TUI mode with a live jq query prompt, keyboard navigation, view switcher, and row detail inspector overlay drawer.
+\fB\-u\fR, \fB\-\-ui\fR, \fB\-i\fR, \fB\-\-interactive\fR
+Launch interactive TUI mode with a live jq query prompt, keyboard navigation, view switcher, and row detail inspector overlay drawer. (Note: \fB\-i\fR launches TUI when no search pattern is supplied).
 
 .TP
 \fB\-n\fR, \fB\-\-no-headers\fR

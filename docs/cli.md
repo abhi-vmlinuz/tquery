@@ -66,12 +66,44 @@ docker inspect my-container | tq -g 'nginx' -g 'Running' --strict
 
 ---
 
-### `-V, --invert, --invert-match`
+### `-i, -I, --ignore-case`
+Case-insensitive search matching (matches `grep -i` and `rg -i`).
+
+```bash
+# Case-insensitive search for 'meta'
+curl -s https://api.example.com/models | tq -g 'meta' -i
+```
+
+---
+
+### `-v, -V, --invert, --invert-match`
 Inverts the grep filter match (selects rows that do **not** match the pattern), similar to `grep -v`.
 
 ```bash
 # Filter out stopped instances
-tq -g 'stopped' --invert data.json
+tq -g 'stopped' -v data.json
+```
+
+---
+
+### Combined POSIX Grep Flags (`-iv`, `-vi`, `-gi`, `-gv`, `-gvi`, `-giv`)
+Combine search flags in any order:
+
+```bash
+# Combine ignore-case (-i) and invert-match (-v)
+tq -g 'meta' -iv data.json
+tq -gvi 'meta' data.json
+```
+
+---
+
+### `-u, --ui, --interactive`
+Launches the full-screen interactive Terminal User Interface (TUI). Allows real-time typing of JQ filters, keyboard navigation, row inspection, and instant view switching.
+
+```bash
+tq -u data.json
+tq -i data.json
+curl -s https://api.example.com/items | tq -u
 ```
 
 ---
