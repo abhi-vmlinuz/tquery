@@ -7,9 +7,59 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/term"
 )
+
+type model struct {
+	viewport viewport.Model
+	ready    bool
+	content  string
+}
+
+func (m model) Init() tea.Cmd {
+	return nil
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		case "g":
+			m.viewport.GotoTop()
+			return m, nil
+		case "G":
+			m.viewport.GotoBottom()
+			return m, nil
+		}
+
+	case tea.WindowSizeMsg:
+		if !m.ready {
+			m.viewport = viewport.New(msg.Width, msg.Height)
+			m.viewport.SetContent(m.content)
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height
+		}
+	}
+
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
+}
+
+func (m model) View() string {
+	if !m.ready {
+		return "\n  Initializing pager..."
+	}
+	return m.viewport.View()
+}
 
 // ShouldPage determines whether output should be directed through a pager.
 func ShouldPage(lineCount int, noPager bool) bool {
@@ -34,15 +84,26 @@ func ShouldPage(lineCount int, noPager bool) bool {
 		return false
 	}
 
-	// Only page if content exceeds available terminal height (leaving 1 line for prompt)
+	// Page if content exceeds available terminal height
 	return lineCount > (height - 1)
 }
 
-// PageOutput pipes the given content to a terminal pager (less -R or $PAGER).
-// Falls back to direct stdout printing if pager is unavailable.
+// PageOutput pipes content to custom $PAGER or launches the built-in Bubble Tea pager.
 func PageOutput(content string) error {
-	pagerCmd := getPagerCommand()
-	if pagerCmd == "" || pagerCmd == "cat" {
+	// If user explicitly configured TQ_PAGER or PAGER, try system pager
+	if customPager := os.Getenv("TQ_PAGER"); customPager != "" {
+		return runSystemPager(customPager, content)
+	}
+	if envPager := os.Getenv("PAGER"); envPager != "" && envPager != "less" {
+		return runSystemPager(envPager, content)
+	}
+
+	// Default: Built-in Bubble Tea pager with AltScreen + Mouse Motion
+	return RunBuiltinPager(content)
+}
+
+func runSystemPager(pagerCmd string, content string) error {
+	if pagerCmd == "cat" {
 		_, err := fmt.Print(content)
 		return err
 	}
@@ -56,38 +117,26 @@ func PageOutput(content string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Ensure LESS flags and UTF-8 support are configured if using less
 	if strings.Contains(binary, "less") {
 		cmd.Env = append(os.Environ(), "LESSCHARSET=utf-8")
 	}
 
 	if err := cmd.Run(); err != nil {
-		// Fall back to direct stdout on any pager execution error
 		_, _ = fmt.Print(content)
-		return nil
 	}
-
 	return nil
 }
 
-func getPagerCommand() string {
-	if p := os.Getenv("TQ_PAGER"); p != "" {
-		return p
-	}
-	if p := os.Getenv("PAGER"); p != "" {
-		// If user set PAGER to 'less', ensure -R flag is applied for ANSI colors and alternate screen window
-		if p == "less" {
-			return "less -R"
-		}
-		return p
-	}
-
-	// Default pager: less -R (opens alternate screen window, closes on q)
-	if _, err := exec.LookPath("less"); err == nil {
-		return "less -R"
-	}
-
-	return ""
+// RunBuiltinPager runs the Bubble Tea viewport pager with alternate screen & mouse capture.
+func RunBuiltinPager(content string) error {
+	m := model{content: content}
+	p := tea.NewProgram(
+		m,
+		tea.WithAltScreen(),       // Clean alternate screen (no scrollback leak!)
+		tea.WithMouseCellMotion(), // Mouse wheel scrolls viewport, NOT terminal scrollbar!
+	)
+	_, err := p.Run()
+	return err
 }
 
 // WriteOrPage writes content to writer or launches pager depending on conditions.
