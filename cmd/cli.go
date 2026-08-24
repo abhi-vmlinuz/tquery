@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -166,18 +165,24 @@ func Execute() {
 
 func parseFlags() Config {
 	var cfg Config
-	var numericLimit int
 	cfg.IgnoreCase = true // Smart case-insensitive by default
 	cfg.Format = "auto"   // Auto-detect table vs tree based on JSON structure
 
 	rawArgs := os.Args[1:]
-	var filteredArgs []string
+	var positionals []string
 
-	// Pre-pass: scan all raw arguments for flags and position-independent options
 	for i := 0; i < len(rawArgs); i++ {
 		arg := rawArgs[i]
 
-		// 1. Direct Shape Shortcuts
+		if arg == "-h" || arg == "--help" {
+			printUsageAndExit()
+		}
+		if arg == "--version" {
+			cfg.ShowVersion = true
+			continue
+		}
+
+		// Shape Shortcuts
 		switch arg {
 		case "--tree":
 			cfg.Format = "tree"
@@ -206,20 +211,49 @@ func parseFlags() Config {
 		case "--pager":
 			cfg.NoPager = false
 			continue
+		case "-n", "--no-headers":
+			cfg.NoHeaders = true
+			continue
+		case "--no-unwrap":
+			cfg.NoUnwrap = true
+			continue
+		case "--no-color":
+			cfg.NoColor = true
+			continue
 		case "-u", "--ui", "--interactive":
 			cfg.Interactive = true
 			continue
 		}
 
-		// 2. Detect -<number> (e.g. -10, -5)
-		if strings.HasPrefix(arg, "-") && len(arg) > 1 && !strings.HasPrefix(arg, "--") {
-			if num, err := strconv.Atoi(arg[1:]); err == nil && num > 0 {
-				numericLimit = num
+		// -f / --format <val>
+		if arg == "-f" || arg == "--format" {
+			if i+1 < len(rawArgs) {
+				cfg.Format = rawArgs[i+1]
+				i++
 				continue
 			}
 		}
 
-		// 3. Detect -g / -e pattern arguments
+		// -l / -L / --limit <val>
+		if arg == "-l" || arg == "-L" || arg == "--limit" {
+			if i+1 < len(rawArgs) {
+				if num, err := strconv.Atoi(rawArgs[i+1]); err == nil && num > 0 {
+					cfg.Limit = num
+					i++
+					continue
+				}
+			}
+		}
+
+		// -<number> shortcut (e.g. -10, -5)
+		if strings.HasPrefix(arg, "-") && len(arg) > 1 && !strings.HasPrefix(arg, "--") {
+			if num, err := strconv.Atoi(arg[1:]); err == nil && num > 0 {
+				cfg.Limit = num
+				continue
+			}
+		}
+
+		// -g / -e / --grep <pattern>
 		if arg == "-g" || arg == "-e" || arg == "--grep" {
 			if i+1 < len(rawArgs) {
 				cfg.Patterns = append(cfg.Patterns, rawArgs[i+1])
@@ -228,7 +262,7 @@ func parseFlags() Config {
 			}
 		}
 
-		// 4. Detect combined -g flags like -gi, -gv, -gvi, -giv, -gI, -gV
+		// Combined -g flags like -gi, -gv, -gvi, -giv, -gI, -gV
 		if strings.HasPrefix(arg, "-g") && len(arg) > 2 {
 			subFlags := arg[2:]
 			if strings.ContainsAny(subFlags, "iI") {
@@ -246,7 +280,7 @@ func parseFlags() Config {
 			continue
 		}
 
-		// 5. Detect POSIX combined flags like -iv, -vi, -i, -v, -u, -I, -V
+		// POSIX combined flags like -iv, -vi, -i, -v, -u, -I, -V
 		if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && len(arg) > 1 {
 			flags := arg[1:]
 			isFlagCluster := true
@@ -270,123 +304,67 @@ func parseFlags() Config {
 			}
 		}
 
-		filteredArgs = append(filteredArgs, arg)
-	}
-
-	fs := flag.NewFlagSet("tq", flag.ExitOnError)
-
-	var limitFlag int
-	var invertFlag bool
-	var ignoreCaseFlag bool
-	var interactiveFlag bool
-	var formatFlag string
-	var strictFlag bool
-	var noPagerFlag bool
-	var noHeadersFlag bool
-	var noUnwrapFlag bool
-	var noColorFlag bool
-
-	fs.StringVar(&formatFlag, "f", "", "Output format: table, tree, markdown, csv, tsv, json")
-	fs.StringVar(&formatFlag, "format", "", "Output format: table, tree, markdown, csv, tsv, json")
-	fs.BoolVar(&interactiveFlag, "u", false, "Launch interactive TUI mode")
-	fs.BoolVar(&interactiveFlag, "ui", false, "Launch interactive TUI mode")
-	fs.BoolVar(&interactiveFlag, "interactive", false, "Launch interactive TUI mode")
-	fs.BoolVar(&noHeadersFlag, "n", false, "Hide headers")
-	fs.BoolVar(&noHeadersFlag, "no-headers", false, "Hide headers")
-	fs.BoolVar(&noUnwrapFlag, "no-unwrap", false, "Disable root array wrapper auto-unwrapping")
-	fs.BoolVar(&noColorFlag, "no-color", false, "Disable ANSI color formatting")
-	fs.BoolVar(&noPagerFlag, "no-pager", false, "Disable automatic terminal pager (less -R)")
-	fs.IntVar(&limitFlag, "l", 0, "Limit number of output rows (e.g. -l 10 or -10)")
-	fs.IntVar(&limitFlag, "L", 0, "Limit number of output rows")
-	fs.IntVar(&limitFlag, "limit", 0, "Limit number of output rows")
-	fs.BoolVar(&invertFlag, "v", false, "Invert match (select non-matching rows)")
-	fs.BoolVar(&invertFlag, "V", false, "Invert match (select non-matching rows)")
-	fs.BoolVar(&invertFlag, "invert", false, "Invert match (select non-matching rows)")
-	fs.BoolVar(&invertFlag, "invert-match", false, "Invert match (select non-matching rows)")
-	fs.BoolVar(&ignoreCaseFlag, "i", false, "Case-insensitive grep match")
-	fs.BoolVar(&ignoreCaseFlag, "I", false, "Case-insensitive grep match")
-	fs.BoolVar(&ignoreCaseFlag, "ignore-case", false, "Case-insensitive grep match")
-	fs.BoolVar(&strictFlag, "strict", false, "Strict matching: require all supplied patterns to match (AND)")
-	fs.BoolVar(&cfg.ShowVersion, "version", false, "Show version")
-
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tq [options] [--tree|--table|--json] [-<number>] [-g <pat1> -g <pat2>] [--strict] [jq_query] [file]\n\n")
-		fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
-		fmt.Fprintf(os.Stderr, "Multi-Pattern Search:\n")
-		fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter by pattern (can be specified multiple times for OR)\n")
-		fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
-		fmt.Fprintf(os.Stderr, "  --strict                Strict matching: require all supplied patterns to match (AND)\n")
-		fmt.Fprintf(os.Stderr, "  -i, -I, --ignore-case   Case-insensitive search\n")
-		fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match\n")
-		fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi, -giv    Combined grep flags\n\n")
-		fmt.Fprintf(os.Stderr, "Shape Shortcuts:\n")
-		fmt.Fprintf(os.Stderr, "  --tree                  Force hierarchical tree view\n")
-		fmt.Fprintf(os.Stderr, "  --table                 Force tabular view\n")
-		fmt.Fprintf(os.Stderr, "  --json, --raw           Force formatted JSON output\n")
-		fmt.Fprintf(os.Stderr, "  --markdown, --md        Force markdown table output\n")
-		fmt.Fprintf(os.Stderr, "  --csv, --tsv            Force delimited data output\n\n")
-		fmt.Fprintf(os.Stderr, "Examples:\n")
-		fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google' -g 'deepseek'\n")
-		fmt.Fprintf(os.Stderr, "  docker inspect container | tq -g 'nginx' -g 'running' --strict\n")
-		fmt.Fprintf(os.Stderr, "  tq -u data.json\n\n")
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		fs.PrintDefaults()
-	}
-
-	_ = fs.Parse(filteredArgs)
-
-	if formatFlag != "" {
-		cfg.Format = formatFlag
-	}
-	if invertFlag {
-		cfg.InvertMatch = true
-	}
-	if ignoreCaseFlag {
-		cfg.IgnoreCase = true
-	}
-	if strictFlag {
-		cfg.Strict = true
-	}
-	if noPagerFlag {
-		cfg.NoPager = true
-	}
-	if noHeadersFlag {
-		cfg.NoHeaders = true
-	}
-	if noUnwrapFlag {
-		cfg.NoUnwrap = true
-	}
-	if noColorFlag {
-		cfg.NoColor = true
-	}
-
-	if interactiveFlag {
-		if len(cfg.Patterns) == 0 {
-			cfg.Interactive = true
-		} else {
-			cfg.IgnoreCase = true
+		// Long flags with = (e.g. --format=tree, --limit=10, --grep=meta)
+		if strings.HasPrefix(arg, "--") && strings.Contains(arg, "=") {
+			parts := strings.SplitN(arg[2:], "=", 2)
+			key, val := parts[0], parts[1]
+			switch key {
+			case "format", "f":
+				cfg.Format = val
+			case "limit", "l", "L":
+				if num, err := strconv.Atoi(val); err == nil && num > 0 {
+					cfg.Limit = num
+				}
+			case "grep", "g", "e":
+				cfg.Patterns = append(cfg.Patterns, val)
+			}
+			continue
 		}
+
+		// If it's an unrecognized option starting with -, ignore or skip
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		// Positional argument (JQ query or File path)
+		positionals = append(positionals, arg)
 	}
 
-	if limitFlag > 0 {
-		cfg.Limit = limitFlag
-	} else {
-		cfg.Limit = numericLimit
-	}
-
-	args := fs.Args()
-	if len(args) > 0 {
-		if isFile(args[0]) {
-			cfg.FilePath = args[0]
+	if len(positionals) > 0 {
+		if isFile(positionals[0]) {
+			cfg.FilePath = positionals[0]
 		} else {
-			cfg.Query = args[0]
-			if len(args) > 1 {
-				cfg.FilePath = args[1]
+			cfg.Query = positionals[0]
+			if len(positionals) > 1 {
+				cfg.FilePath = positionals[1]
 			}
 		}
 	}
 
 	return cfg
+}
+
+func printUsageAndExit() {
+	fmt.Fprintf(os.Stderr, "Usage: tq [options] [--tree|--table|--json] [-<number>] [-g <pat1> -g <pat2>] [--strict] [jq_query] [file]\n\n")
+	fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
+	fmt.Fprintf(os.Stderr, "Multi-Pattern Search:\n")
+	fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter by pattern (can be specified multiple times for OR)\n")
+	fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
+	fmt.Fprintf(os.Stderr, "  --strict                Strict matching: require all supplied patterns to match (AND)\n")
+	fmt.Fprintf(os.Stderr, "  -i, -I, --ignore-case   Case-insensitive search\n")
+	fmt.Fprintf(os.Stderr, "  -v, -V, --invert        Invert grep match\n")
+	fmt.Fprintf(os.Stderr, "  -gi, -gv, -gvi, -giv    Combined grep flags\n\n")
+	fmt.Fprintf(os.Stderr, "Shape Shortcuts:\n")
+	fmt.Fprintf(os.Stderr, "  --tree                  Force hierarchical tree view\n")
+	fmt.Fprintf(os.Stderr, "  --table                 Force tabular view\n")
+	fmt.Fprintf(os.Stderr, "  --json, --raw           Force formatted JSON output\n")
+	fmt.Fprintf(os.Stderr, "  --markdown, --md        Force markdown table output\n")
+	fmt.Fprintf(os.Stderr, "  --csv, --tsv            Force delimited data output\n\n")
+	fmt.Fprintf(os.Stderr, "Examples:\n")
+	fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google' -g 'deepseek'\n")
+	fmt.Fprintf(os.Stderr, "  docker inspect container | tq -g 'nginx' -g 'running' --strict\n")
+	fmt.Fprintf(os.Stderr, "  tq -u data.json\n\n")
+	os.Exit(0)
 }
 
 func readInput(filePath string) ([]byte, error) {
