@@ -101,7 +101,11 @@ func pruneRecursiveMulti(v any, keyContext string, matchers []PatternMatcher, st
 			prunedItem, itemMask, itemMatched := pruneRecursiveMulti(item, indexKey, matchers, itemStrict, fullMask)
 
 			if itemMatched {
-				filteredSlice = append(filteredSlice, prunedItem)
+				if isListOfMaps {
+					filteredSlice = append(filteredSlice, item)
+				} else {
+					filteredSlice = append(filteredSlice, prunedItem)
+				}
 				combinedMask |= itemMask
 			}
 		}
