@@ -1,4 +1,4 @@
-# tquery (tq)
+# tquery 
 
 <p align="center">
   <strong>Interactive terminal visualizer and query engine for JSON data.</strong>
