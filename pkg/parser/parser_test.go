@@ -134,3 +134,26 @@ func TestParseInvalidJSONStream(t *testing.T) {
 		t.Errorf("Expected error to mention 'invalid json stream', got: %v", err)
 	}
 }
+
+func TestFormatValue(t *testing.T) {
+	// Whole-number float64s (how json.Decoder decodes integers into any)
+	// must keep integer representation instead of scientific notation.
+	cases := []struct {
+		in   any
+		want string
+	}{
+		{float64(735790403), "735790403"},
+		{float64(0), "0"},
+		{float64(-42), "-42"},
+		{float64(1.5), "1.5"},
+		{"text", "text"},
+		{true, "true"},
+		{nil, "null"},
+	}
+
+	for _, c := range cases {
+		if got := FormatValue(c.in); got != c.want {
+			t.Errorf("FormatValue(%v) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

@@ -88,9 +88,13 @@ func Execute() {
 		}
 	}
 
-	// 2. Smart Shape Auto-Detection
-	chosenFormat := strings.ToLower(cfg.Format)
-	if chosenFormat == "auto" || chosenFormat == "" {
+	// 2. Normalize the requested output format, then auto-detect if unresolved
+	chosenFormat, err := normalizeFormat(cfg.Format)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if chosenFormat == "auto" {
 		if parser.IsComplexStructure(targetData) {
 			chosenFormat = "tree"
 		} else {
@@ -160,6 +164,30 @@ func Execute() {
 	if err := pager.WriteOrPage(os.Stdout, buf.String(), cfg.NoPager); err != nil {
 		fmt.Fprintf(os.Stderr, "Output error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+// normalizeFormat maps documented format aliases onto canonical render formats.
+// It returns an error for unknown values so typos fail loudly instead of
+// silently falling back to table output.
+func normalizeFormat(f string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(f)) {
+	case "", "auto":
+		return "auto", nil
+	case "table":
+		return "table", nil
+	case "tree":
+		return "tree", nil
+	case "json", "raw":
+		return "json", nil
+	case "markdown", "md":
+		return "markdown", nil
+	case "csv":
+		return "csv", nil
+	case "tsv":
+		return "tsv", nil
+	default:
+		return "", fmt.Errorf("unknown output format %q (valid formats: auto, table, tree, json, raw, markdown, md, csv, tsv)", f)
 	}
 }
 

@@ -129,9 +129,14 @@ docker inspect my-container | tq -g 'port' --json
 ### `-f, --format <format>`
 Specifies the output format for rendered data (`auto`, `table`, `tree`, `markdown`, `csv`, `tsv`, `json`). Defaults to `auto` (auto-detects table for flat datasets and tree for deep objects).
 
+The aliases `md` (= `markdown`) and `raw` (= `json`) are accepted; any other unknown value exits with an error.
+
 ```bash
 # Markdown table output
 tq -f markdown data.json
+
+# Markdown via alias
+tq -f md data.json
 
 # CSV output
 tq -f csv data.json > output.csv

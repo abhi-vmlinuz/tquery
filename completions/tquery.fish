@@ -3,7 +3,7 @@
 complete -c tquery -f
 
 # Format options
-complete -c tquery -s f -l format -d "Output format" -r -a "table markdown csv tsv tree json"
+complete -c tquery -s f -l format -d "Output format" -r -a "table markdown md csv tsv tree json raw"
 
 # Flags
 complete -c tquery -s i -l interactive -d "Launch interactive TUI mode"

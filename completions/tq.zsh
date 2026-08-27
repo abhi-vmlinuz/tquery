@@ -7,9 +7,11 @@ _tq() {
         'table:ANSI color-coded Unicode ASCII table'
         'tree:Hierarchical indented ASCII tree'
         'markdown:GitHub-Flavored Markdown table'
+        'md:Markdown table (alias)'
         'csv:Comma-separated values data'
         'tsv:Tab-separated values data'
         'json:Pretty-printed JSON output'
+        'raw:JSON output (alias)'
     )
 
     _arguments \

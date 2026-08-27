@@ -109,7 +109,7 @@ func Parse(data []byte, autoUnwrap bool) (*DataStructure, error) {
 	default:
 		ds.Type = KindValue
 		ds.Headers = []string{"Value"}
-		ds.Rows = [][]string{{formatValue(v)}}
+		ds.Rows = [][]string{{FormatValue(v)}}
 	}
 
 	return ds, nil
@@ -204,7 +204,7 @@ func mapsToTable(items []any) ([]string, [][]string) {
 			if !exists {
 				row[j] = ""
 			} else {
-				row[j] = formatValue(val)
+				row[j] = FormatValue(val)
 			}
 		}
 		rows[i] = row
@@ -222,7 +222,7 @@ func mapToRows(m map[string]any) [][]string {
 
 	rows := make([][]string, len(keys))
 	for i, k := range keys {
-		rows[i] = []string{k, formatValue(m[k])}
+		rows[i] = []string{k, FormatValue(m[k])}
 	}
 	return rows
 }
@@ -230,12 +230,14 @@ func mapToRows(m map[string]any) [][]string {
 func sliceToRows(items []any) [][]string {
 	rows := make([][]string, len(items))
 	for i, item := range items {
-		rows[i] = []string{strconv.Itoa(i), formatValue(item)}
+		rows[i] = []string{strconv.Itoa(i), FormatValue(item)}
 	}
 	return rows
 }
 
-func formatValue(v any) string {
+// FormatValue renders any decoded JSON value as a display string,
+// preserving integer representation for whole-number float64s.
+func FormatValue(v any) string {
 	if v == nil {
 		return "null"
 	}

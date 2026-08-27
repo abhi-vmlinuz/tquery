@@ -95,3 +95,22 @@ func TestRenderCSV(t *testing.T) {
 		t.Errorf("Expected %q, got %q", expected, out)
 	}
 }
+
+func TestBuildTreePreservesIntegerFormat(t *testing.T) {
+	data := map[string]any{
+		"created": float64(735790403),
+		"id":      "01-ai/yi-large",
+		"ratio":   float64(1.5),
+	}
+
+	out := BuildTree(data, false, nil, false)
+
+	if strings.Contains(out, "e+08") || strings.Contains(out, "e+09") {
+		t.Errorf("tree output contains scientific notation:\n%s", out)
+	}
+	for _, want := range []string{"created: 735790403", "ratio: 1.5"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("tree output missing %q:\n%s", want, out)
+		}
+	}
+}

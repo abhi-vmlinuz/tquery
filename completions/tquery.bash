@@ -7,7 +7,7 @@ _tquery_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     opts="-f --format -i --interactive -n --no-headers --no-unwrap --no-color -v --version -h --help"
-    formats="table markdown csv tsv tree json"
+    formats="table markdown md csv tsv tree json raw"
 
     case "$prev" in
         -f|--format)

@@ -7,11 +7,12 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tquery/tquery/pkg/filter"
+	"github.com/tquery/tquery/pkg/parser"
 )
 
 var (
 	KeyStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")) // Cyan
-	BranchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))          // Grey
+	BranchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // Grey
 )
 
 // BuildTree formats any JSON interface into a beautiful ASCII tree string with multi-pattern match highlighting.
@@ -79,7 +80,7 @@ func buildTreeInternal(sb *strings.Builder, indent string, key string, val any, 
 		}
 
 	default:
-		formatted := fmt.Sprintf("%v", v)
+		formatted := parser.FormatValue(v)
 		if useColor {
 			if len(patterns) > 0 {
 				formatted = filter.HighlightMulti(formatted, patterns, ignoreCase)

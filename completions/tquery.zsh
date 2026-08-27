@@ -5,10 +5,12 @@ _tquery() {
     formats=(
         'table:ANSI color-coded Unicode ASCII table'
         'markdown:GitHub-Flavored Markdown table'
+        'md:Markdown table (alias)'
         'csv:Comma-separated values data'
         'tsv:Tab-separated values data'
         'tree:Hierarchical indented ASCII tree'
         'json:Pretty-printed JSON output'
+        'raw:JSON output (alias)'
     )
 
     _arguments \

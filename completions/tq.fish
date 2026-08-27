@@ -4,7 +4,7 @@ for cmd in tq tquery
     complete -c $cmd -f
 
     # Format options
-    complete -c $cmd -s f -l format -d "Output format" -r -a "auto table tree markdown csv tsv json"
+    complete -c $cmd -s f -l format -d "Output format" -r -a "auto table tree markdown md csv tsv json raw"
 
     # Shape shortcuts
     complete -c $cmd -l tree -d "Force hierarchical tree view"
