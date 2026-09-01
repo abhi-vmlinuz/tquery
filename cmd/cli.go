@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/mattn/go-isatty"
+	"github.com/tquery/tquery/completions"
 	"github.com/tquery/tquery/pkg/engine"
 	"github.com/tquery/tquery/pkg/filter"
 	"github.com/tquery/tquery/pkg/pager"
@@ -37,6 +39,11 @@ type Config struct {
 }
 
 func Execute() {
+	if len(os.Args) > 1 && (os.Args[1] == "completion" || os.Args[1] == "completions") {
+		handleCompletion(os.Args[2:])
+		return
+	}
+
 	cfg := parseFlags()
 
 	if cfg.ShowVersion {
@@ -88,13 +95,9 @@ func Execute() {
 		}
 	}
 
-	// 2. Normalize the requested output format, then auto-detect if unresolved
-	chosenFormat, err := normalizeFormat(cfg.Format)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	if chosenFormat == "auto" {
+	// 2. Smart Shape Auto-Detection
+	chosenFormat := strings.ToLower(cfg.Format)
+	if chosenFormat == "auto" || chosenFormat == "" {
 		if parser.IsComplexStructure(targetData) {
 			chosenFormat = "tree"
 		} else {
@@ -167,27 +170,81 @@ func Execute() {
 	}
 }
 
-// normalizeFormat maps documented format aliases onto canonical render formats.
-// It returns an error for unknown values so typos fail loudly instead of
-// silently falling back to table output.
-func normalizeFormat(f string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(f)) {
-	case "", "auto":
-		return "auto", nil
-	case "table":
-		return "table", nil
-	case "tree":
-		return "tree", nil
-	case "json", "raw":
-		return "json", nil
-	case "markdown", "md":
-		return "markdown", nil
-	case "csv":
-		return "csv", nil
-	case "tsv":
-		return "tsv", nil
+func handleCompletion(args []string) {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Println("Generate shell completion scripts for tq.")
+		fmt.Println()
+		fmt.Println("Usage:")
+		fmt.Println("  tq completion [bash|zsh|fish|install]")
+		fmt.Println()
+		fmt.Println("Examples:")
+		fmt.Println("  source <(tq completion bash)              # Load bash completion in current shell")
+		fmt.Println("  tq completion zsh > ~/.zsh/completion/_tq  # Save zsh completion script")
+		fmt.Println("  tq completion install                     # Install completion for your active shell")
+		os.Exit(0)
+	}
+
+	shell := strings.ToLower(args[0])
+	switch shell {
+	case "bash":
+		fmt.Print(completions.BashCompletion)
+	case "zsh":
+		fmt.Print(completions.ZshCompletion)
+	case "fish":
+		fmt.Print(completions.FishCompletion)
+	case "install":
+		installCompletions()
 	default:
-		return "", fmt.Errorf("unknown output format %q (valid formats: auto, table, tree, json, raw, markdown, md, csv, tsv)", f)
+		fmt.Fprintf(os.Stderr, "Unknown shell %q. Supported options: bash, zsh, fish, install\n", shell)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func installCompletions() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error finding home directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	activeShell := os.Getenv("SHELL")
+	if strings.Contains(activeShell, "zsh") {
+		paths := []string{
+			filepath.Join(home, ".local/share/zsh/site-functions/_tq"),
+			filepath.Join(home, ".zsh/completion/_tq"),
+		}
+		writeCompletionToPaths(paths, completions.ZshCompletion, "zsh")
+	} else if strings.Contains(activeShell, "fish") {
+		paths := []string{
+			filepath.Join(home, ".config/fish/completions/tq.fish"),
+		}
+		writeCompletionToPaths(paths, completions.FishCompletion, "fish")
+	} else {
+		// Default to bash
+		paths := []string{
+			filepath.Join(home, ".local/share/bash-completion/completions/tq"),
+			filepath.Join(home, ".bash_completion.d/tq"),
+		}
+		writeCompletionToPaths(paths, completions.BashCompletion, "bash")
+	}
+}
+
+func writeCompletionToPaths(paths []string, content string, shellName string) {
+	installed := false
+	for _, p := range paths {
+		dir := filepath.Dir(p)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			continue
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err == nil {
+			fmt.Printf("[ok] Installed %s completion to %s\n", shellName, p)
+			installed = true
+		}
+	}
+	if !installed {
+		fmt.Fprintf(os.Stderr, "Could not install %s completion automatically. Use: tq completion %s\n", shellName, shellName)
+		os.Exit(1)
 	}
 }
 
