@@ -13,8 +13,8 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-runewidth"
-	"github.com/tquery/tquery/pkg/filter"
-	"github.com/tquery/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/filter"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
 	"golang.org/x/term"
 )
 

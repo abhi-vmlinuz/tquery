@@ -36,6 +36,22 @@ var (
 	HelpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#64748B"))
 
+	NavPill = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#F59E0B")).
+			Padding(0, 1)
+
+	FilterPill = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#10B981")).
+			Padding(0, 1)
+
+	StatusSuccessStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#10B981"))
+
 	InspectHeader = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#F59E0B")).
@@ -48,6 +64,14 @@ func (m Model) View() string {
 
 	// Header Bar
 	title := TitleStyle.Render("tquery")
+
+	var inputBadge string
+	if m.InputMode == ModeFilter {
+		inputBadge = FilterPill.Render("FILTER")
+	} else {
+		inputBadge = NavPill.Render("NAV")
+	}
+
 	var modePills []string
 	modes := []string{"Table", "Tree", "JSON"}
 	for i, name := range modes {
@@ -57,12 +81,16 @@ func (m Model) View() string {
 			modePills = append(modePills, PillInactive.Render(name))
 		}
 	}
-	header := title + "  " + strings.Join(modePills, " ")
+	header := title + "  " + inputBadge + "  " + strings.Join(modePills, " ")
 	sb.WriteString(header + "\n\n")
 
 	// Search Input Bar
 	prompt := PromptStyle.Render("jq > ")
-	sb.WriteString(prompt + m.TextInput.View() + "\n")
+	sb.WriteString(prompt + m.TextInput.View())
+	if m.StatusMsg != "" {
+		sb.WriteString("  " + StatusSuccessStyle.Render(m.StatusMsg))
+	}
+	sb.WriteString("\n")
 
 	// Error Line
 	if m.QueryErr != nil {
@@ -73,7 +101,7 @@ func (m Model) View() string {
 
 	// Main Viewport / Table / Overlay
 	if m.ShowInspect {
-		inspectBar := InspectHeader.Render(" INSPECT ROW DETAIL (Press ESC to return) ")
+		inspectBar := InspectHeader.Render(" INSPECT ROW DETAIL (Press ESC or Enter to return) ")
 		sb.WriteString(inspectBar + "\n" + m.Viewport.View() + "\n")
 	} else {
 		switch m.ViewMode {
@@ -89,7 +117,14 @@ func (m Model) View() string {
 	}
 
 	// Footer / Help Line
-	footer := HelpStyle.Render("Tab: switch view  •  Enter: inspect row  •  Ctrl+C / q: quit")
+	var footer string
+	if m.ShowInspect {
+		footer = HelpStyle.Render("Esc / Enter: return to table  •  j/k: scroll  •  Ctrl+C: quit")
+	} else if m.InputMode == ModeFilter {
+		footer = HelpStyle.Render("Esc / Enter: navigate rows  •  Tab: switch view  •  Ctrl+Y: copy query  •  Ctrl+C: quit")
+	} else {
+		footer = HelpStyle.Render("/ or i: filter  •  j/k: move rows  •  Enter: inspect  •  Tab: view  •  Ctrl+Y: copy query  •  q: quit")
+	}
 	sb.WriteString("\n" + footer)
 
 	return sb.String()

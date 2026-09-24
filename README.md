@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/abhi-vmlinuz/tquery/releases"><img src="https://img.shields.io/github/v/release/abhi-vmlinuz/tquery?style=flat-square&color=blue" alt="Release"></a>
-  <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License"></a>
 </p>
 
@@ -107,10 +107,13 @@ sudo kubectl get pod tq-demo -n nexus-challenges -o json | tq -g nginx -g runnin
 - **Smart shape auto-detection** // automatically chooses table for flat datasets and tree for deeply nested objects (e.g. Docker, Kubernetes, Terraform)
 - **Auto-unwrapping** // automatically unwraps standard REST API envelope keys (`data`, `items`, `results`, `models`, `records`) without manual querying
 - **Path-pruning grep (`-g`)** // high-speed regex search across tables, and prunes hierarchical trees to only show the matching branch paths
+- **Column projection (`-c, --columns`)** // cherry-pick columns from wide datasets without writing complex JQ projections
+- **In-memory sorting (`-s, --sort`)** // instant numeric and alphabetic sorting on any column (ascending/descending)
+- **Clipboard ingestion (`-cb, --clipboard`)** // inspect JSON directly from your system clipboard
 - **Row limit flag (`-<number>`, `-l`)** // quick Unix-style row limiting (e.g. `tq -10` or `tq -l 5`)
 - **Direct shape flags** // `--table`, `--tree`, `--json`, `--markdown`, `--csv`
 - **Embedded jq engine** // native Go JQ query processing powered by `gojq`; no external `jq` binary required
-- **Interactive TUI mode** (`-i`) // live JQ search prompt, vim keybindings, table navigation, and row inspection drawer
+- **Interactive TUI mode** (`-i`) // live JQ search prompt, vim modal navigation, row inspection drawer, and instant query clipboard export (`Ctrl+Y`)
 - **Zero dependencies** // standalone, single static binary (`tq`, aliased to `tquery`)
 
 ---
@@ -194,7 +197,21 @@ kubectl get pod my-pod -o json | tq -g 'nginx'
 
 **Invert match (exclude patterns)**
 ```bash
-curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'google' --invert
+**Select specific columns (-c, --columns)**
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -c id,owned_by,created
+```
+
+**Sort records by column (-s, --sort)**
+```bash
+curl -s https://integrate.api.nvidia.com/v1/models | tq -s created -10          # Ascending
+curl -s https://integrate.api.nvidia.com/v1/models | tq -s -created -10         # Descending (leading -)
+```
+
+**Inspect directly from system clipboard (-cb, --clipboard)**
+```bash
+tq -cb
+tq -cb -c id,status
 ```
 
 **Limit output rows**
@@ -228,14 +245,19 @@ tq -i payload.json
 
 When running in interactive mode (`tq -i`):
 
-| Key | Action |
+| Mode / Key | Action |
 | --- | --- |
-| Type text | Live JQ query filtering with real-time preview |
-| `Tab` | Switch view mode (Table → Tree → JSON) |
-| `Enter` | Open / close inspect row detail drawer |
-| `Esc` | Close inspect drawer |
-| `↑` / `↓` / `k` / `j` | Navigate rows and scroll viewports |
-| `Ctrl+C` | Quit |
+| **Filter Mode** | Type text into the live `jq >` prompt with real-time preview |
+| `Esc` / `Enter` | Switch to **Navigation Mode** (unfocuses search bar) |
+| `↑` / `↓` / `Ctrl+P` / `Ctrl+N` | Move table rows up / down while typing |
+| **Nav Mode**: `j` / `k` / `↑` / `↓` | Navigate table rows or scroll tree/JSON viewports |
+| **Nav Mode**: `g` / `G` | Jump to top / bottom of table or viewport |
+| **Nav Mode**: `/` or `i` | Return to **Filter Mode** (focuses query prompt) |
+| `Tab` | Switch view mode (`Table` → `Tree` → `JSON`) |
+| `Enter` (Nav Mode) | Open deep inspect drawer showing complete nested JSON |
+| `Esc` (in drawer) | Return to main view |
+| `Ctrl+Y` | Copy current query to system clipboard |
+| `Ctrl+C` / `q` | Quit |
 
 ---
 

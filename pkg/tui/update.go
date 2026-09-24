@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/tquery/tquery/pkg/engine"
-	"github.com/tquery/tquery/pkg/parser"
-	"github.com/tquery/tquery/pkg/render"
+	"github.com/abhi-vmlinuz/tquery/pkg/engine"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/render"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -20,9 +21,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 
+		case "ctrl+y":
+			copyText := m.Query
+			if copyText == "" {
+				copyText = "."
+			}
+			if err := clipboard.WriteAll(copyText); err == nil {
+				m.StatusMsg = fmt.Sprintf("✓ Copied query %q to clipboard!", copyText)
+			} else {
+				m.StatusMsg = fmt.Sprintf("⚠ Clipboard error: %v", err)
+			}
+			return m, nil
+
 		case "esc":
 			if m.ShowInspect {
 				m.ShowInspect = false
+				return m, nil
+			}
+			if m.InputMode == ModeFilter {
+				m.InputMode = ModeNav
+				m.TextInput.Blur()
 				return m, nil
 			}
 
@@ -38,9 +56,71 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ShowInspect = false
 				return m, nil
 			}
-			if m.ViewMode == ViewTable && len(m.Table.Rows()) > 0 {
+			if m.InputMode == ModeNav && m.ViewMode == ViewTable && len(m.Table.Rows()) > 0 {
 				m.openInspectDrawer()
 				return m, nil
+			}
+			if m.InputMode == ModeFilter {
+				// Pressing enter in filter switches to navigation mode
+				m.InputMode = ModeNav
+				m.TextInput.Blur()
+				return m, nil
+			}
+		}
+
+		// When in ModeNav (Vim-style row & viewport movement)
+		if m.InputMode == ModeNav && !m.ShowInspect {
+			switch msg.String() {
+			case "/", "i":
+				m.InputMode = ModeFilter
+				m.TextInput.Focus()
+				return m, nil
+			case "j", "down":
+				if m.ViewMode == ViewTable {
+					m.Table.MoveDown(1)
+				} else {
+					m.Viewport.LineDown(1)
+				}
+				return m, nil
+			case "k", "up":
+				if m.ViewMode == ViewTable {
+					m.Table.MoveUp(1)
+				} else {
+					m.Viewport.LineUp(1)
+				}
+				return m, nil
+			case "g":
+				if m.ViewMode == ViewTable {
+					m.Table.GotoTop()
+				} else {
+					m.Viewport.GotoTop()
+				}
+				return m, nil
+			case "G":
+				if m.ViewMode == ViewTable {
+					m.Table.GotoBottom()
+				} else {
+					m.Viewport.GotoBottom()
+				}
+				return m, nil
+			case "q":
+				return m, tea.Quit
+			}
+		}
+
+		// When in ModeFilter, allow Up/Down / Ctrl+N/Ctrl+P to navigate rows
+		if m.InputMode == ModeFilter && !m.ShowInspect {
+			switch msg.String() {
+			case "up", "ctrl+p":
+				if m.ViewMode == ViewTable {
+					m.Table.MoveUp(1)
+					return m, nil
+				}
+			case "down", "ctrl+n":
+				if m.ViewMode == ViewTable {
+					m.Table.MoveDown(1)
+					return m, nil
+				}
 			}
 		}
 
@@ -53,8 +133,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshView()
 	}
 
-	// Update text input if not inspect drawer
-	if !m.ShowInspect {
+	// Update text input if in ModeFilter and not inspecting
+	if m.InputMode == ModeFilter && !m.ShowInspect {
 		oldVal := m.TextInput.Value()
 		var cmd tea.Cmd
 		m.TextInput, cmd = m.TextInput.Update(msg)
@@ -62,16 +142,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.TextInput.Value() != oldVal {
 			m.Query = m.TextInput.Value()
+			m.StatusMsg = ""
 			m.evaluateQuery()
 		}
 	}
 
-	// Handle Table / Viewport updates
-	if m.ViewMode == ViewTable && !m.ShowInspect {
-		var cmd tea.Cmd
-		m.Table, cmd = m.Table.Update(msg)
-		cmds = append(cmds, cmd)
-	} else if m.ViewMode != ViewTable || m.ShowInspect {
+	// Handle Viewport scrolling during Inspect
+	if m.ShowInspect {
 		var cmd tea.Cmd
 		m.Viewport, cmd = m.Viewport.Update(msg)
 		cmds = append(cmds, cmd)
@@ -165,20 +242,38 @@ func (m *Model) refreshView() {
 }
 
 func (m *Model) openInspectDrawer() {
-	selectedRow := m.Table.SelectedRow()
-	if len(selectedRow) == 0 {
+	cursor := m.Table.Cursor()
+	if cursor < 0 {
 		return
 	}
 
-	obj := make(map[string]string)
-	for i, h := range m.DataStruct.Headers {
-		if i < len(selectedRow) {
-			obj[h] = selectedRow[i]
+	var inspectData any
+
+	// Extract original deep nested record from Unwrapped slice if available
+	if slice, ok := m.DataStruct.Unwrapped.([]any); ok && cursor < len(slice) {
+		inspectData = slice[cursor]
+	} else if len(m.DataStruct.Rows) > cursor {
+		selectedRow := m.DataStruct.Rows[cursor]
+		obj := make(map[string]any)
+		for i, h := range m.DataStruct.Headers {
+			if i < len(selectedRow) {
+				obj[h] = selectedRow[i]
+			}
 		}
+		inspectData = obj
 	}
 
-	b, _ := json.MarshalIndent(obj, "", "  ")
-	m.InspectContent = string(b)
+	if inspectData == nil {
+		return
+	}
+
+	b, err := json.MarshalIndent(inspectData, "", "  ")
+	if err != nil {
+		m.InspectContent = fmt.Sprintf("%v", inspectData)
+	} else {
+		m.InspectContent = string(b)
+	}
+
 	m.ShowInspect = true
 	m.Viewport.SetContent(m.InspectContent)
 }

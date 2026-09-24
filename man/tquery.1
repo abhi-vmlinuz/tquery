@@ -37,10 +37,68 @@ Pretty-printed JSON object output.
 
 .TP
 \fB\-<number>\fR, \fB\-l\fR, \fB\-\-limit\fR \fINUM\fR
-Limit the maximum number of output rows displayed (e.g. \fBtquery \-10\fR or \fBtquery \-l 5\fR).
+Limit the maximum number of output rows or tree lines displayed (e.g. \fBtquery \-10\fR or \fBtquery \-l 5\fR).
 
 .TP
-\fB\-i\fR, \fB\-\-interactive\fR
+\fB\-c\fR, \fB\-\-columns\fR \fICOLUMNS\fR
+Cherry-pick specific columns from wide datasets (comma-separated list, case-insensitive). Eliminates the need to construct manual JQ object projection filters.
+
+.TP
+\fB\-s\fR, \fB\-\-sort\fR \fICOLUMN\fR
+Sort records in-memory by specified column name. Numbers are compared numerically, and text strings alphabetically (case-insensitive). Prefixing column with a minus sign (e.g. \fB\-s \-created\fR) or passing \fB\-\-desc\fR sorts in descending order.
+
+.TP
+\fB\-\-desc\fR
+Sort in descending order when used in conjunction with \fB\-s\fR or \fB\-\-sort\fR.
+
+.TP
+\fB\-cb\fR, \fB\-\-clipboard\fR
+Read and parse JSON data directly from the system clipboard.
+
+.TP
+\fB\-g\fR, \fB\-e\fR, \fB\-\-grep\fR \fIPATTERN\fR
+Filter rows or tree branches matching a regex or literal string pattern (can be specified multiple times for union OR search).
+
+.TP
+\fB\-\-strict\fR
+Strict multi-pattern matching (AND): requires all specified patterns to be present within each logical record or JSON object.
+
+.TP
+\fB\-i\fR, \fB\-I\fR, \fB\-\-ignore-case\fR
+Case-insensitive search matching (matches \fBgrep \-i\fR).
+
+.TP
+\fB\-v\fR, \fB\-V\fR, \fB\-\-invert\fR, \fB\-\-invert\-match\fR
+Invert grep match (select rows or branches that do not match the specified pattern).
+
+.TP
+\fB\-gi\fR, \fB\-gv\fR, \fB\-gvi\fR, \fB\-giv\fR, \fB\-iv\fR, \fB\-vi\fR
+Combined POSIX grep flags in any order (e.g. \fBtquery \-g meta \-iv\fR or \fBtquery \-gvi meta\fR).
+
+.TP
+\fB\-\-tree\fR, \fB\-\-table\fR, \fB\-\-json\fR, \fB\-\-raw\fR, \fB\-\-markdown\fR, \fB\-\-md\fR, \fB\-\-csv\fR, \fB\-\-tsv\fR
+Direct shape shortcuts to force specific output formatting without \fB\-f\fR (e.g. \fB\-\-raw\fR or \fB\-\-json\fR for formatted JSON output with search match highlights).
+
+.TP
+\fB\-f\fR, \fB\-\-format\fR \fIFORMAT\fR
+Set output formatting mode (aliases accepted: \fBmd\fR for markdown and \fBraw\fR for json; unknown values are rejected with an error). Supported formats:
+.RS
+.IP \fBtable\fR 4
+(Default) Color-coded Unicode ASCII table with auto-aligned columns and syntax-colored primitives.
+.IP \fBmarkdown\fR 4
+GitHub-Flavored Markdown (GFM) pipe table.
+.IP \fBcsv\fR 4
+Comma-separated values data stream.
+.IP \fBtsv\fR 4
+Tab-separated values data stream.
+.IP \fBtree\fR 4
+Indented ASCII tree structure displaying nested keys and types.
+.IP \fBjson\fR 4
+Pretty-printed raw JSON object output (aliased by \fB\-\-raw\fR).
+.RE
+
+.TP
+\fB\-u\fR, \fB\-\-ui\fR, \fB\-i\fR, \fB\-\-interactive\fR
 Launch interactive TUI mode with a live jq query prompt, keyboard navigation, view switcher, and row detail inspector overlay drawer.
 
 .TP
@@ -54,6 +112,10 @@ Disable automatic root array un-wrapping for top-level REST API wrapper keys (e.
 .TP
 \fB\-\-no-color\fR
 Disable ANSI color formatting in output.
+
+.TP
+\fB\-\-no-pager\fR
+Disable automatic terminal paging (\fBless \-R\fR). Output is printed directly to stdout.
 
 .TP
 \fB\-v\fR, \fB\-\-version\fR
@@ -80,20 +142,29 @@ You can pass any standard \fBjq\fR filter as a positional argument.
 .SH INTERACTIVE TUI NAVIGATION
 When \fBtquery\fR is executed with \fB\-i\fR or launched interactively:
 .TP
-\fBType Text\fR
-Updates the live \fBjq >\fR query prompt and re-renders table/tree views instantaneously.
+\fBFilter Mode (Default)\fR
+Type text into the live \fBjq >\fR query prompt. Re-renders views instantaneously. Press \fBUp\fR/\fBDown\fR or \fBCtrl+P\fR/\fBCtrl+N\fR to move table rows while typing.
+.TP
+\fBEsc / Enter\fR
+Switches from \fBFilter Mode\fR to \fBNavigation Mode\fR (unfocuses query prompt).
+.TP
+\fBNavigation Mode: Vim Keys (j / k, g / G)\fR
+Move cursor down/up rows, scroll viewport, or jump to top/bottom without modifying query text.
+.TP
+\fBNavigation Mode: / or i\fR
+Returns to \fBFilter Mode\fR to edit query prompt.
 .TP
 \fBTab\fR
 Cycles active view mode (\fBTable\fR \-> \fBTree\fR \-> \fBJSON\fR).
 .TP
-\fBEnter\fR
-Pops open the \fBInspect Row Detail\fR overlay drawer for the selected table row, presenting full key-value pairs and nested objects.
+\fBEnter (in Navigation Mode)\fR
+Pops open the \fBInspect Row Detail\fR overlay drawer for the selected table row, presenting complete un-flattened nested JSON structure with proper indentation.
 .TP
-\fBEsc\fR
-Closes the Inspect Row Detail overlay.
+\fBEsc / Enter (in Inspect Drawer)\fR
+Closes the Inspect Row Detail overlay and returns to the active view.
 .TP
-\fBUp / Down / Vim (k / j)\fR
-Scrolls table rows or viewport content.
+\fBCtrl+Y\fR
+Copies the active JQ query directly to the system clipboard with transient visual feedback.
 .TP
 \fBCtrl+C / q\fR
 Exits the application.

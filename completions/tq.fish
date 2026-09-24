@@ -15,6 +15,12 @@ for cmd in tq tquery
     complete -c $cmd -l csv -d "Force CSV output"
     complete -c $cmd -l tsv -d "Force TSV output"
 
+    # Data shaping & projection
+    complete -c $cmd -s c -l columns -d "Cherry-pick columns by name (comma-separated)" -r
+    complete -c $cmd -s s -l sort -d "Sort records by column name (use -col for descending)" -r
+    complete -c $cmd -l desc -d "Sort records in descending order"
+    complete -c $cmd -l cb -l clipboard -d "Read JSON data directly from system clipboard"
+
     # Grep & pattern search
     complete -c $cmd -s g -s e -l grep -d "Filter rows/tree branches by regex or string" -r
     complete -c $cmd -l strict -d "Strict multi-pattern matching (AND)"

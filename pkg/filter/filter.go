@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tquery/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
 )
 
 var (

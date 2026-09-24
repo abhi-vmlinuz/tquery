@@ -9,14 +9,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/mattn/go-isatty"
-	"github.com/tquery/tquery/completions"
-	"github.com/tquery/tquery/pkg/engine"
-	"github.com/tquery/tquery/pkg/filter"
-	"github.com/tquery/tquery/pkg/pager"
-	"github.com/tquery/tquery/pkg/parser"
-	"github.com/tquery/tquery/pkg/render"
-	"github.com/tquery/tquery/pkg/tui"
+	"github.com/abhi-vmlinuz/tquery/completions"
+	"github.com/abhi-vmlinuz/tquery/pkg/engine"
+	"github.com/abhi-vmlinuz/tquery/pkg/filter"
+	"github.com/abhi-vmlinuz/tquery/pkg/pager"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/render"
+	"github.com/abhi-vmlinuz/tquery/pkg/tui"
 )
 
 const Version = "0.1.3"
@@ -36,6 +37,12 @@ type Config struct {
 	IgnoreCase  bool
 	Query       string
 	FilePath    string
+	Columns     []string
+	ListColumns bool
+	SortEnabled bool
+	SortBy      string
+	SortDesc    bool
+	Clipboard   bool
 }
 
 func Execute() {
@@ -51,7 +58,7 @@ func Execute() {
 		os.Exit(0)
 	}
 
-	rawJSON, err := readInput(cfg.FilePath)
+	rawJSON, err := readInput(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 		os.Exit(1)
@@ -61,7 +68,7 @@ func Execute() {
 	isTTYStdout := isatty.IsTerminal(os.Stdout.Fd())
 
 	runInteractive := cfg.Interactive
-	if !cfg.Interactive && isTTYStdin && isTTYStdout && cfg.FilePath == "" && len(cfg.Patterns) == 0 {
+	if !cfg.Interactive && isTTYStdin && isTTYStdout && cfg.FilePath == "" && len(cfg.Patterns) == 0 && !cfg.Clipboard {
 		// Default CLI behavior when launched interactively with no args
 	}
 
@@ -95,9 +102,15 @@ func Execute() {
 		}
 	}
 
-	// 2. Smart Shape Auto-Detection
-	chosenFormat := strings.ToLower(cfg.Format)
-	if chosenFormat == "auto" || chosenFormat == "" {
+	// 2. Format Normalization & Smart Shape Auto-Detection
+	normFmt, err := normalizeFormat(cfg.Format)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	chosenFormat := normFmt
+	if chosenFormat == "auto" {
 		if parser.IsComplexStructure(targetData) {
 			chosenFormat = "tree"
 		} else {
@@ -139,7 +152,43 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	// 4. Apply -<number> / --limit trimming
+	// Column listing when -c / --columns was passed without arguments
+	if cfg.ListColumns && len(cfg.Columns) == 0 {
+		if len(ds.Headers) == 0 {
+			fmt.Fprintln(os.Stdout, "No columns detected.")
+			return
+		}
+		var buf bytes.Buffer
+		fmt.Fprintf(&buf, "Columns (%d):\n", len(ds.Headers))
+		for idx, h := range ds.Headers {
+			fmt.Fprintf(&buf, "  %2d  %s\n", idx+1, h)
+		}
+		if err := pager.WriteOrPage(os.Stdout, buf.String(), cfg.NoPager); err != nil {
+			fmt.Fprintf(os.Stderr, "Output error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// 4. In-memory Sorting (-s, --sort, --desc)
+	if cfg.SortEnabled || cfg.SortBy != "" {
+		sortCol := cfg.SortBy
+		if sortCol == "" {
+			if len(cfg.Columns) > 0 {
+				sortCol = cfg.Columns[0]
+			} else {
+				sortCol = findPrimaryColumn(ds.Headers)
+			}
+		}
+		ds = parser.SortDataStructure(ds, sortCol, cfg.SortDesc)
+	}
+
+	// 5. Column Projection (-c, --columns)
+	if len(cfg.Columns) > 0 {
+		ds = parser.ProjectColumns(ds, cfg.Columns)
+	}
+
+	// 6. Apply -<number> / --limit trimming
 	if cfg.Limit > 0 {
 		if len(ds.Rows) > cfg.Limit {
 			ds.Rows = ds.Rows[:cfg.Limit]
@@ -167,6 +216,28 @@ func Execute() {
 	if err := pager.WriteOrPage(os.Stdout, buf.String(), cfg.NoPager); err != nil {
 		fmt.Fprintf(os.Stderr, "Output error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func normalizeFormat(fmtStr string) (string, error) {
+	cleaned := strings.ToLower(strings.TrimSpace(fmtStr))
+	switch cleaned {
+	case "", "auto":
+		return "auto", nil
+	case "table":
+		return "table", nil
+	case "tree":
+		return "tree", nil
+	case "json", "raw":
+		return "json", nil
+	case "markdown", "md":
+		return "markdown", nil
+	case "csv":
+		return "csv", nil
+	case "tsv":
+		return "tsv", nil
+	default:
+		return "", fmt.Errorf("unknown output format %q. Supported formats: auto, table, tree, json (raw), markdown (md), csv, tsv", fmtStr)
 	}
 }
 
@@ -308,26 +379,64 @@ func parseFlags() Config {
 		case "-u", "--ui", "--interactive":
 			cfg.Interactive = true
 			continue
+		case "--desc":
+			cfg.SortDesc = true
+			cfg.SortEnabled = true
+			continue
+		case "-cb", "--clipboard":
+			cfg.Clipboard = true
+			continue
+		}
+
+		// -c / --columns <val>
+		if arg == "-c" || arg == "--columns" {
+			if i+1 < len(rawArgs) && !isFlag(rawArgs[i+1]) && !isFile(rawArgs[i+1]) {
+				for _, c := range strings.Split(rawArgs[i+1], ",") {
+					if trimmed := strings.TrimSpace(c); trimmed != "" {
+						cfg.Columns = append(cfg.Columns, trimmed)
+					}
+				}
+				i++
+			} else {
+				cfg.ListColumns = true
+			}
+			continue
+		}
+
+		// -s / --sort <val>
+		if arg == "-s" || arg == "--sort" {
+			cfg.SortEnabled = true
+			if i+1 < len(rawArgs) && !isFlag(rawArgs[i+1]) && !isFile(rawArgs[i+1]) {
+				val := rawArgs[i+1]
+				if strings.HasPrefix(val, "-") && len(val) > 1 {
+					cfg.SortDesc = true
+					cfg.SortBy = strings.TrimPrefix(val, "-")
+				} else {
+					cfg.SortBy = val
+				}
+				i++
+			}
+			continue
 		}
 
 		// -f / --format <val>
 		if arg == "-f" || arg == "--format" {
-			if i+1 < len(rawArgs) {
+			if i+1 < len(rawArgs) && !isFlag(rawArgs[i+1]) {
 				cfg.Format = rawArgs[i+1]
 				i++
-				continue
 			}
+			continue
 		}
 
 		// -l / -L / --limit <val>
 		if arg == "-l" || arg == "-L" || arg == "--limit" {
-			if i+1 < len(rawArgs) {
+			if i+1 < len(rawArgs) && !isFlag(rawArgs[i+1]) {
 				if num, err := strconv.Atoi(rawArgs[i+1]); err == nil && num > 0 {
 					cfg.Limit = num
 					i++
-					continue
 				}
 			}
+			continue
 		}
 
 		// -<number> shortcut (e.g. -10, -5)
@@ -340,11 +449,11 @@ func parseFlags() Config {
 
 		// -g / -e / --grep <pattern>
 		if arg == "-g" || arg == "-e" || arg == "--grep" {
-			if i+1 < len(rawArgs) {
+			if i+1 < len(rawArgs) && !isFlag(rawArgs[i+1]) {
 				cfg.Patterns = append(cfg.Patterns, rawArgs[i+1])
 				i++
-				continue
 			}
+			continue
 		}
 
 		// Combined -g flags like -gi, -gv, -gvi, -giv, -gI, -gV
@@ -389,7 +498,7 @@ func parseFlags() Config {
 			}
 		}
 
-		// Long flags with = (e.g. --format=tree, --limit=10, --grep=meta)
+		// Long flags with = (e.g. --format=tree, --limit=10, --grep=meta, --columns=id,name)
 		if strings.HasPrefix(arg, "--") && strings.Contains(arg, "=") {
 			parts := strings.SplitN(arg[2:], "=", 2)
 			key, val := parts[0], parts[1]
@@ -402,6 +511,25 @@ func parseFlags() Config {
 				}
 			case "grep", "g", "e":
 				cfg.Patterns = append(cfg.Patterns, val)
+			case "columns", "c":
+				for _, col := range strings.Split(val, ",") {
+					if trimmed := strings.TrimSpace(col); trimmed != "" {
+						cfg.Columns = append(cfg.Columns, trimmed)
+					}
+				}
+			case "sort", "s":
+				cfg.SortEnabled = true
+				if strings.HasPrefix(val, "-") && len(val) > 1 {
+					cfg.SortDesc = true
+					cfg.SortBy = strings.TrimPrefix(val, "-")
+				} else {
+					cfg.SortBy = val
+				}
+			case "clipboard", "cb":
+				cfg.Clipboard = true
+			case "desc":
+				cfg.SortDesc = true
+				cfg.SortEnabled = true
 			}
 			continue
 		}
@@ -430,8 +558,14 @@ func parseFlags() Config {
 }
 
 func printUsageAndExit() {
-	fmt.Fprintf(os.Stderr, "Usage: tq [options] [--tree|--table|--json] [-<number>] [-g <pat1> -g <pat2>] [--strict] [jq_query] [file]\n\n")
+	fmt.Fprintf(os.Stderr, "Usage: tq [options] [--tree|--table|--json] [-<number>] [-c col1,col2] [-s col] [-cb] [-g <pat1> -g <pat2>] [--strict] [jq_query] [file]\n\n")
 	fmt.Fprintf(os.Stderr, "tq (tquery) converts raw JSON & JQ streams into human-readable tables, trees, and interactive UI.\n\n")
+	fmt.Fprintf(os.Stderr, "Data Shaping & Projection:\n")
+	fmt.Fprintf(os.Stderr, "  -c, --columns <cols>    Cherry-pick columns by name (comma-separated, e.g. -c id,status)\n")
+	fmt.Fprintf(os.Stderr, "  -s, --sort <column>     Sort records by column (numeric or alphabetic; use -s -col for descending)\n")
+	fmt.Fprintf(os.Stderr, "  --desc                  Sort in descending order (when combined with -s)\n")
+	fmt.Fprintf(os.Stderr, "  -cb, --clipboard        Read JSON data directly from system clipboard\n")
+	fmt.Fprintf(os.Stderr, "  -<number>, -l <number>  Limit output rows (e.g. -10, -5, -l 20)\n\n")
 	fmt.Fprintf(os.Stderr, "Multi-Pattern Search:\n")
 	fmt.Fprintf(os.Stderr, "  -g, --grep <pattern>    Filter by pattern (can be specified multiple times for OR)\n")
 	fmt.Fprintf(os.Stderr, "  -e <pattern>            Alias for -g pattern\n")
@@ -446,20 +580,32 @@ func printUsageAndExit() {
 	fmt.Fprintf(os.Stderr, "  --markdown, --md        Force markdown table output\n")
 	fmt.Fprintf(os.Stderr, "  --csv, --tsv            Force delimited data output\n\n")
 	fmt.Fprintf(os.Stderr, "Examples:\n")
-	fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -g 'google' -g 'deepseek'\n")
+	fmt.Fprintf(os.Stderr, "  curl https://integrate.api.nvidia.com/v1/models | tq -c id,owned_by -10\n")
 	fmt.Fprintf(os.Stderr, "  docker inspect container | tq -g 'nginx' -g 'running' --strict\n")
+	fmt.Fprintf(os.Stderr, "  tq -cb -s created --desc\n")
 	fmt.Fprintf(os.Stderr, "  tq -u data.json\n\n")
 	os.Exit(0)
 }
 
-func readInput(filePath string) ([]byte, error) {
-	if filePath != "" {
-		return os.ReadFile(filePath)
+func readInput(cfg Config) ([]byte, error) {
+	if cfg.Clipboard {
+		text, err := clipboard.ReadAll()
+		if err != nil {
+			return nil, fmt.Errorf("error reading clipboard: %w", err)
+		}
+		if strings.TrimSpace(text) == "" {
+			return nil, fmt.Errorf("clipboard is empty")
+		}
+		return []byte(text), nil
+	}
+
+	if cfg.FilePath != "" {
+		return os.ReadFile(cfg.FilePath)
 	}
 
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) != 0 {
-		return nil, fmt.Errorf("no input provided. Pipe JSON to stdin or specify a JSON file path")
+		return nil, fmt.Errorf("no input provided. Pipe JSON to stdin, specify a JSON file path, or use -cb to read from clipboard")
 	}
 
 	return io.ReadAll(os.Stdin)
@@ -488,3 +634,41 @@ func isFile(path string) bool {
 	}
 	return !info.IsDir()
 }
+
+func findPrimaryColumn(headers []string) string {
+	priority := []string{"id", "name", "title", "key", "model", "created", "timestamp", "date"}
+	for _, p := range priority {
+		for _, h := range headers {
+			if strings.EqualFold(h, p) {
+				return h
+			}
+		}
+	}
+	if len(headers) > 0 {
+		return headers[0]
+	}
+	return ""
+}
+
+func isFlag(arg string) bool {
+	if strings.HasPrefix(arg, "--") {
+		return true
+	}
+	if !strings.HasPrefix(arg, "-") || len(arg) <= 1 {
+		return false
+	}
+	if _, err := strconv.Atoi(arg[1:]); err == nil {
+		return true // numeric row limit like -10, -5
+	}
+	knownFlags := []string{
+		"-c", "-s", "-l", "-L", "-g", "-e", "-i", "-I", "-v", "-V", "-u", "-f", "-n", "-h",
+		"-cb", "-gi", "-gv", "-gvi", "-giv", "-iv", "-vi",
+	}
+	for _, kf := range knownFlags {
+		if arg == kf {
+			return true
+		}
+	}
+	return false
+}
+

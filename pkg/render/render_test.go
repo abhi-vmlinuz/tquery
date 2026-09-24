@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tquery/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
 )
 
 func TestAllocateColumnWidths(t *testing.T) {

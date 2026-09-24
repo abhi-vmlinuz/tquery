@@ -22,6 +22,10 @@ _tq() {
         '(--markdown --md)'{--markdown,--md}'[Force markdown table output]' \
         '--csv[Force CSV output]' \
         '--tsv[Force TSV output]' \
+        '(-c --columns)'{-c,--columns}'[Cherry-pick specific columns (comma-separated)]:columns:' \
+        '(-s --sort)'{-s,--sort}'[Sort records by column (use -col for descending)]:column:' \
+        '--desc[Sort in descending order]' \
+        '(-cb --clipboard)'{-cb,--clipboard}'[Read JSON directly from system clipboard]' \
         '*'{-g,-e,--grep}'[Filter by regex or string pattern]:pattern:' \
         '--strict[Strict multi-pattern matching (AND)]' \
         '(-v -V --invert --invert-match)'{-v,-V,--invert,--invert-match}'[Invert grep match]' \

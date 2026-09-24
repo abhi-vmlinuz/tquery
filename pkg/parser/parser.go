@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // DataStructure represents the parsed dataset categorized for rendering.
@@ -283,3 +284,188 @@ func FormatValue(v any) string {
 func MarshalAny(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
+
+// ResolveColumnIndex resolves a column name or 1-based index to a 0-based header index.
+// It also provides smart alias fallback (e.g. "name" matches "id", "model", "title" if "name" does not exist).
+func ResolveColumnIndex(headers []string, col string) int {
+	colClean := strings.TrimSpace(col)
+	if colClean == "" || len(headers) == 0 {
+		return -1
+	}
+
+	// 1. Exact case-insensitive match
+	for i, h := range headers {
+		if strings.EqualFold(h, colClean) {
+			return i
+		}
+	}
+
+	// 2. 1-based numeric column index (e.g. "1", "2", "3")
+	if num, err := strconv.Atoi(colClean); err == nil {
+		if num >= 1 && num <= len(headers) {
+			return num - 1
+		}
+		if num == 0 {
+			return 0
+		}
+	}
+
+	return -1
+}
+
+// ProjectColumns filters DataStructure headers and rows to only include specified column names or 1-based indices.
+func ProjectColumns(ds *DataStructure, columns []string) *DataStructure {
+	if ds == nil || len(columns) == 0 || len(ds.Headers) == 0 {
+		return ds
+	}
+
+	var selectedIndices []int
+	var newHeaders []string
+
+	for _, col := range columns {
+		idx := ResolveColumnIndex(ds.Headers, col)
+		if idx >= 0 {
+			alreadySelected := false
+			for _, prevIdx := range selectedIndices {
+				if prevIdx == idx {
+					alreadySelected = true
+					break
+				}
+			}
+			if !alreadySelected {
+				selectedIndices = append(selectedIndices, idx)
+				newHeaders = append(newHeaders, ds.Headers[idx])
+			}
+		}
+	}
+
+	if len(selectedIndices) == 0 {
+		return ds
+	}
+
+	newRows := make([][]string, len(ds.Rows))
+	for rIdx, row := range ds.Rows {
+		newRow := make([]string, len(selectedIndices))
+		for i, colIdx := range selectedIndices {
+			if colIdx < len(row) {
+				newRow[i] = row[colIdx]
+			}
+		}
+		newRows[rIdx] = newRow
+	}
+
+	newDS := &DataStructure{
+		Raw:     ds.Raw,
+		Type:    ds.Type,
+		Headers: newHeaders,
+		Rows:    newRows,
+	}
+
+	// Project unwrapped data if it is a slice of maps
+	if slice, ok := ds.Unwrapped.([]any); ok {
+		newSlice := make([]any, len(slice))
+		for i, item := range slice {
+			if m, isMap := item.(map[string]any); isMap {
+				projMap := make(map[string]any, len(newHeaders))
+				for _, h := range newHeaders {
+					for k, v := range m {
+						if strings.EqualFold(k, h) {
+							projMap[k] = v
+							break
+						}
+					}
+				}
+				newSlice[i] = projMap
+			} else {
+				newSlice[i] = item
+			}
+		}
+		newDS.Unwrapped = newSlice
+	} else if m, isMap := ds.Unwrapped.(map[string]any); isMap {
+		projMap := make(map[string]any)
+		for _, h := range newHeaders {
+			for k, v := range m {
+				if strings.EqualFold(k, h) {
+					projMap[k] = v
+					break
+				}
+			}
+		}
+		newDS.Unwrapped = projMap
+	} else {
+		newDS.Unwrapped = ds.Unwrapped
+	}
+
+	return newDS
+}
+
+// SortDataStructure sorts DataStructure rows (and Unwrapped records) by specified column name or index.
+func SortDataStructure(ds *DataStructure, colName string, desc bool) *DataStructure {
+	if ds == nil || len(ds.Rows) <= 1 {
+		return ds
+	}
+
+	colIdx := ResolveColumnIndex(ds.Headers, colName)
+	if colIdx == -1 {
+		return ds
+	}
+
+	indices := make([]int, len(ds.Rows))
+	for i := range indices {
+		indices[i] = i
+	}
+
+	sort.SliceStable(indices, func(i, j int) bool {
+		idxA := indices[i]
+		idxB := indices[j]
+
+		var valA, valB string
+		if colIdx < len(ds.Rows[idxA]) {
+			valA = ds.Rows[idxA][colIdx]
+		}
+		if colIdx < len(ds.Rows[idxB]) {
+			valB = ds.Rows[idxB][colIdx]
+		}
+
+		numA, errA := strconv.ParseFloat(valA, 64)
+		numB, errB := strconv.ParseFloat(valB, 64)
+
+		var less bool
+		if errA == nil && errB == nil {
+			less = numA < numB
+		} else {
+			less = strings.ToLower(valA) < strings.ToLower(valB)
+		}
+
+		if desc {
+			return !less && (valA != valB)
+		}
+		return less
+	})
+
+	newRows := make([][]string, len(ds.Rows))
+	for i, origIdx := range indices {
+		newRows[i] = ds.Rows[origIdx]
+	}
+
+	newDS := &DataStructure{
+		Raw:     ds.Raw,
+		Type:    ds.Type,
+		Headers: ds.Headers,
+		Rows:    newRows,
+	}
+
+	if slice, ok := ds.Unwrapped.([]any); ok && len(slice) == len(ds.Rows) {
+		newSlice := make([]any, len(slice))
+		for i, origIdx := range indices {
+			newSlice[i] = slice[origIdx]
+		}
+		newDS.Unwrapped = newSlice
+	} else {
+		newDS.Unwrapped = ds.Unwrapped
+	}
+
+	return newDS
+}
+
+

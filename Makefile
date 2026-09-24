@@ -1,4 +1,4 @@
-PREFIX ?= /usr/local
+PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/share/man/man1
 BASHCOMPDIR ?= $(PREFIX)/share/bash-completion/completions

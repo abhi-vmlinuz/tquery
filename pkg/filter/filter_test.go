@@ -3,7 +3,7 @@ package filter
 import (
 	"testing"
 
-	"github.com/tquery/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
 )
 
 func TestFilterLiteral(t *testing.T) {

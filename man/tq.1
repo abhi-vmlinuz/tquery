@@ -22,6 +22,22 @@ It automatically unwraps top-level REST API wrappers (such as \fI{"data": [...]}
 Limit the maximum number of output rows or tree lines displayed (e.g. \fBtq \-10\fR or \fBtq \-l 5\fR).
 
 .TP
+\fB\-c\fR, \fB\-\-columns\fR \fICOLUMNS\fR
+Cherry-pick specific columns from wide datasets (comma-separated list, case-insensitive). Eliminates the need to construct manual JQ object projection filters.
+
+.TP
+\fB\-s\fR, \fB\-\-sort\fR \fICOLUMN\fR
+Sort records in-memory by specified column name. Numbers are compared numerically, and text strings alphabetically (case-insensitive). Prefixing column with a minus sign (e.g. \fB\-s \-created\fR) or passing \fB\-\-desc\fR sorts in descending order.
+
+.TP
+\fB\-\-desc\fR
+Sort in descending order when used in conjunction with \fB\-s\fR or \fB\-\-sort\fR.
+
+.TP
+\fB\-cb\fR, \fB\-\-clipboard\fR
+Read and parse JSON data directly from the system clipboard.
+
+.TP
 \fB\-g\fR, \fB\-e\fR, \fB\-\-grep\fR \fIPATTERN\fR
 Filter rows or tree branches matching a regex or literal string pattern (can be specified multiple times for union OR search).
 
@@ -108,23 +124,33 @@ You can pass any standard \fBjq\fR filter as a positional argument.
 .SH INTERACTIVE TUI NAVIGATION
 When \fBtq\fR is executed with \fB\-i\fR or launched interactively:
 .TP
-\fBType Text\fR
-Updates the live \fBjq >\fR query prompt and re-renders table/tree views instantaneously.
+\fBFilter Mode (Default)\fR
+Type text into the live \fBjq >\fR query prompt. Re-renders views instantaneously. Press \fBUp\fR/\fBDown\fR or \fBCtrl+P\fR/\fBCtrl+N\fR to move table rows while typing.
+.TP
+\fBEsc / Enter\fR
+Switches from \fBFilter Mode\fR to \fBNavigation Mode\fR (unfocuses query prompt).
+.TP
+\fBNavigation Mode: Vim Keys (j / k, g / G)\fR
+Move cursor down/up rows, scroll viewport, or jump to top/bottom without modifying query text.
+.TP
+\fBNavigation Mode: / or i\fR
+Returns to \fBFilter Mode\fR to edit query prompt.
 .TP
 \fBTab\fR
 Cycles active view mode (\fBTable\fR \-> \fBTree\fR \-> \fBJSON\fR).
 .TP
-\fBEnter\fR
-Pops open the \fBInspect Row Detail\fR overlay drawer for the selected table row, presenting full key-value pairs and nested objects.
+\fBEnter (in Navigation Mode)\fR
+Pops open the \fBInspect Row Detail\fR overlay drawer for the selected table row, presenting complete un-flattened nested JSON structure with proper indentation.
 .TP
-\fBEsc\fR
-Closes the Inspect Row Detail overlay.
+\fBEsc / Enter (in Inspect Drawer)\fR
+Closes the Inspect Row Detail overlay and returns to the active view.
 .TP
-\fBUp / Down / Vim (k / j)\fR
-Scrolls table rows or viewport content.
+\fBCtrl+Y\fR
+Copies the active JQ query directly to the system clipboard with transient visual feedback.
 .TP
 \fBCtrl+C / q\fR
 Exits the application.
+
 
 .SH EXAMPLES
 .TP

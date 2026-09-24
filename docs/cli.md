@@ -37,6 +37,53 @@ tq -5 '.data[]' data.json
 
 ---
 
+### `-c, --columns <col1,col2,...>`
+Cherry-picks specific columns from wide datasets (comma-separated list, case-insensitive). Eliminates the need to construct manual JQ object projection filters for tables, markdown, CSV, and JSON outputs.
+
+```bash
+# Only display id, status, and created columns
+kubectl get pods -o json | tq -c name,status,namespace
+
+# Select columns from curl output
+curl -s https://api.example.com/models | tq -c id,owned_by -10
+```
+
+---
+
+### `-s, --sort <column>`, `--desc`
+Sorts records in-memory by the specified column name. Automatically recognizes and compares numbers numerically, and text strings alphabetically (case-insensitive).
+
+- Prefixing the column with a `-` (e.g. `-s -created`) or passing `--desc` sorts in descending order.
+
+```bash
+# Sort models by creation timestamp ascending
+curl -s https://api.example.com/models | tq -s created -10
+
+# Sort containers by creation descending
+docker inspect my-container | tq -s -Created
+
+# Explicit --desc flag
+tq -s score --desc models.json
+```
+
+---
+
+### `-cb, --clipboard`
+Reads and parses JSON data directly from the system clipboard. Perfect for inspecting API payloads or logs copied from browsers, Postman, or chat applications without having to create temporary scratch files.
+
+```bash
+# View clipboard content as an adaptive table/tree
+tq -cb
+
+# Search and filter clipboard JSON
+tq -cb -g 'error'
+
+# Project columns from clipboard JSON
+tq -cb -c id,status
+```
+
+---
+
 ### `-g, --grep <pattern>` (Multiple patterns supported)
 Filters rows or tree branches matching regex or string patterns. You can specify `-g` (or `-e`) multiple times.
 

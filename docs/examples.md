@@ -21,10 +21,18 @@ curl -s https://integrate.api.nvidia.com/v1/models | tq -10
 curl -s https://integrate.api.nvidia.com/v1/models | tq -g 'deepseek|llama|meta'
 ```
 
-### Select Specific Model Fields
+### Select Specific Model Fields (without manual JQ projection)
 ```bash
-curl -s https://integrate.api.nvidia.com/v1/models | \
-  tq '.data[] | {id, owned_by, created}'
+curl -s https://integrate.api.nvidia.com/v1/models | tq -c id,owned_by,created
+```
+
+### Sort Models by Timestamp (Ascending / Descending)
+```bash
+# Newest models first (descending by timestamp)
+curl -s https://integrate.api.nvidia.com/v1/models | tq -s -created -10
+
+# Or with explicit --desc
+curl -s https://integrate.api.nvidia.com/v1/models | tq -c id,created -s created --desc -10
 ```
 
 ---
@@ -99,3 +107,20 @@ tq -f tree package.json
 ```bash
 tq -i large_api_response.json
 ```
+
+---
+
+## 7. Clipboard Workflows
+
+### Inspect Copied API Responses Instantly
+```bash
+# View JSON in clipboard without saving to a temp file
+tq -cb
+
+# Filter errors in clipboard JSON
+tq -cb -g 'error'
+
+# Project specific columns from clipboard JSON
+tq -cb -c id,status
+```
+

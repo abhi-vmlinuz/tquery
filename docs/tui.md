@@ -53,18 +53,25 @@ Press `Tab` to cycle between three specialized view modes:
 - **JSON Mode**: Formatted and syntax-highlighted raw JSON.
 
 ### 3. Row Detail Inspect Overlay (`Enter`)
-When browsing large tables with many columns, press `Enter` on any selected row to open an inspect drawer overlay. This drawer displays all fields and nested sub-objects for that specific row. Press `Esc` or `Enter` to close the overlay.
+When browsing large tables with many columns, press `Enter` in Navigation Mode on any selected row to open an inspect drawer overlay. This drawer displays all fields and full nested JSON sub-objects with complete indentation. Press `Esc` or `Enter` to close the overlay.
+
+### 4. Direct Query Copy (`Ctrl+Y`)
+Press `Ctrl+Y` at any moment in the TUI to copy the currently composed `jq` query directly to your system clipboard, allowing you to instantly paste it into shell scripts, CLI commands, or documentation.
 
 ---
 
 ## Keyboard Controls Reference
 
-| Shortcut | Description |
+| Mode / Shortcut | Description |
 | --- | --- |
-| `Typing` | Inputs text into the live `jq >` query bar |
+| **Filter Mode** | Type text into the live `jq >` query bar |
+| `Esc` / `Enter` | Switch from **Filter Mode** to **Navigation Mode** |
+| `↑` / `↓` / `Ctrl+P` / `Ctrl+N` | Move table selection while typing in filter |
+| **Nav Mode**: `j` / `k` / `↑` / `↓` | Move cursor down / up rows, or scroll viewport |
+| **Nav Mode**: `g` / `G` | Jump to top / bottom of table or viewport |
+| **Nav Mode**: `/` or `i` | Return to **Filter Mode** (focuses query prompt) |
 | `Tab` | Cycles through view modes (`Table` ➔ `Tree` ➔ `JSON`) |
-| `Enter` | Opens the full-detail inspection drawer for the highlighted row |
-| `Esc` | Exits the inspection drawer and returns to the active table view |
-| `↑` / `k` | Move cursor / scroll up |
-| `↓` / `j` | Move cursor / scroll down |
-| `Ctrl+C` | Quit `tq` |
+| `Enter` (Nav Mode) | Opens the full-detail inspection drawer for the highlighted row |
+| `Esc` (in drawer) | Exits the inspection drawer and returns to the active table view |
+| `Ctrl+Y` | Copies the active JQ query to your clipboard |
+| `Ctrl+C` / `q` | Quit `tq` |

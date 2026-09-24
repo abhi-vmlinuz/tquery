@@ -5,7 +5,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/tquery/tquery/pkg/parser"
+	"github.com/abhi-vmlinuz/tquery/pkg/parser"
 )
 
 type ViewMode int
@@ -14,6 +14,13 @@ const (
 	ViewTable ViewMode = iota
 	ViewTree
 	ViewJSON
+)
+
+type InputMode int
+
+const (
+	ModeFilter InputMode = iota // Editing JQ filter in prompt
+	ModeNav                     // Navigating table / viewport (Vim j/k, g/G, etc.)
 )
 
 type Model struct {
@@ -32,6 +39,8 @@ type Model struct {
 	Query           string
 	QueryErr        error
 	ViewMode        ViewMode
+	InputMode       InputMode
+	StatusMsg       string
 	ShowInspect     bool
 	InspectContent  string
 	
@@ -65,6 +74,7 @@ func NewModel(rawJSON []byte, initialQuery string, autoUnwrap bool) (Model, erro
 		Viewport:    vp,
 		Query:       initialQuery,
 		ViewMode:    ViewTable,
+		InputMode:   ModeFilter,
 		Width:       80,
 		Height:      24,
 	}
